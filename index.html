@@ -399,17 +399,25 @@ function escA(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').r
 function showError(m){var b=document.getElementById('errorBox');b.textContent=m;b.classList.remove('hidden');}
 function hideError(){document.getElementById('errorBox').classList.add('hidden');}
 
+function loadFromYandex(useProxy) {
+  var proxy = useProxy ? 'https://api.allorigins.win/raw?url=' : '';
+  var apiUrl = YANDEX_API + encodeURIComponent(YANDEX_DISK_URL);
+  var fetchUrl = useProxy ? proxy + encodeURIComponent(apiUrl) : apiUrl;
+  return fetch(fetchUrl)
+    .then(function(r){if(!r.ok)throw new Error('API '+r.status);return r.json();})
+    .then(function(d){if(!d.href)throw new Error('Нет ссылки');document.getElementById('loadingHint').textContent='Скачивание…';var dlUrl=useProxy?proxy+encodeURIComponent(d.href):d.href;return fetch(dlUrl);})
+    .then(function(r){if(!r.ok)throw new Error('DL '+r.status);document.getElementById('loadingHint').textContent='Обработка…';return r.arrayBuffer();})
+    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))throw new Error('Ошибка обработки');showUI();});
+}
+
 function loadData() {
   hideError();
   document.getElementById('loadingArea').classList.remove('hidden');
   document.getElementById('uploadArea').classList.add('hidden');
   document.getElementById('loadingHint').textContent='Подключение…';
-  fetch(YANDEX_API + encodeURIComponent(YANDEX_DISK_URL))
-    .then(function(r){if(!r.ok)throw new Error('Ошибка '+r.status);return r.json();})
-    .then(function(d){if(!d.href)throw new Error('Нет ссылки');document.getElementById('loadingHint').textContent='Скачивание…';return fetch(d.href);})
-    .then(function(r){if(!r.ok)throw new Error('Ошибка '+r.status);document.getElementById('loadingHint').textContent='Обработка…';return r.arrayBuffer();})
-    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))return;showUI();})
-    .catch(function(err){console.error(err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные. Загрузите файл вручную.');});
+  loadFromYandex(false)
+    .catch(function(err){console.log('Direct failed:',err.message);document.getElementById('loadingHint').textContent='Повтор через прокси…';return loadFromYandex(true);})
+    .catch(function(err){console.error('All failed:',err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные ('+err.message+'). Загрузите файл вручную.');});
 }
 
 function handleFile(file) {
