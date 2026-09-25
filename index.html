@@ -83,7 +83,7 @@ h1 { font-size: 1.6rem; margin-bottom: 4px; }
 .seg-btn[data-segment="all"].active { border-color: var(--all); background: var(--all-bg); }
 .filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .filter-row label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
-#topicFilter { flex: 1; min-width: 200px; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; background: var(--card); cursor: pointer; }
+#topicFilter { flex: 1; min-width: 200px; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; background: var(--card); }
 #topicFilter:focus { outline: none; border-color: var(--primary); }
 #searchInput { flex: 1; min-width: 200px; max-width: 300px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; }
 #searchInput:focus { outline: none; border-color: var(--primary); }
@@ -159,7 +159,8 @@ h1 { font-size: 1.6rem; margin-bottom: 4px; }
       </div>
       <div class="filter-row">
         <label for="topicFilter">Тема:</label>
-        <select id="topicFilter"><option value="">Все темы</option></select>
+        <input type="text" id="topicFilter" list="topicList" placeholder="Все темы" autocomplete="off">
+        <datalist id="topicList"></datalist>
         <label for="searchInput">Поиск:</label>
         <input type="text" id="searchInput" placeholder="Поиск по имени...">
         <button class="export-btn" id="exportBtn">💾 Экспорт CSV</button>
@@ -264,6 +265,7 @@ function mapColumns(headers) {
     else if (h.startsWith('Имя')) map.name = i;
     else if (h.startsWith('Ссылка')) map.link = i;
     else if (h === 'Тема' || h.startsWith('Тема')) map.topic = i;
+    else if (h === 'Примечание' || h.startsWith('Примечание')) map.note = i;
     else if (h.startsWith('Подписчики всего')) map.subscribers = i;
     else if (h.startsWith('Доля местных')) map.localShare = i;
     else if (h.startsWith('Местные подписчики')) map.localSubs = i;
@@ -291,6 +293,7 @@ function parseData(rows) {
     rawData.push({
       name: String(get('name')||'').trim(), link: String(get('link')||'').trim(),
       topic: get('topic')!==undefined&&get('topic')!==null ? String(get('topic')).trim() : null,
+      note: get('note')!==undefined&&get('note')!==null ? String(get('note')).trim() : null,
       subscribers: num(get('subscribers')), localShare: num(get('localShare')),
       localSubs: num(get('localSubs')), maxViews: num(get('maxViews')),
       minViews: num(get('minViews')), avgViews: num(get('avgViews')),
@@ -329,15 +332,25 @@ function updateCounts() {
 }
 
 function populateTopics() {
-  var t={};for(var i=0;i<rawData.length;i++){if(rawData[i].topic)t[rawData[i].topic]=true;}
-  var sorted=Object.keys(t).sort();var sel=document.getElementById('topicFilter');
-  sel.innerHTML='<option value="">Все темы</option>';
-  for(var j=0;j<sorted.length;j++){var o=document.createElement('option');o.value=sorted[j];o.textContent=sorted[j];sel.appendChild(o);}
+  var t={};
+  for(var i=0;i<rawData.length;i++){
+    if(rawData[i].topic){
+      var parts=rawData[i].topic.split(',');
+      for(var p=0;p<parts.length;p++){
+        var tp=parts[p].trim().toLowerCase();
+        if(tp) t[tp]=true;
+      }
+    }
+  }
+  var sorted=Object.keys(t).sort();
+  var dl=document.getElementById('topicList');
+  dl.innerHTML='';
+  for(var j=0;j<sorted.length;j++){var o=document.createElement('option');o.value=sorted[j];dl.appendChild(o);}
 }
 
 function showStats() {
   var cl=0;for(var i=0;i<rawData.length;i++){if(getSegments(rawData[i]).length>0)cl++;}
-  var t={};for(var i=0;i<rawData.length;i++){if(rawData[i].topic)t[rawData[i].topic]=true;}
+  var t={};for(var i=0;i<rawData.length;i++){if(rawData[i].topic){var parts=rawData[i].topic.split(',');for(var p=0;p<parts.length;p++){var tp=parts[p].trim().toLowerCase();if(tp)t[tp]=true;}}}
   document.getElementById('statsBar').innerHTML=
     '<div class="stat-item"><span class="label">Всего блогеров: </span><span class="value">'+rawData.length+'</span></div>'+
     '<div class="stat-item"><span class="label">Классифицированы: </span><span class="value">'+cl+'</span></div>'+
@@ -363,13 +376,13 @@ function showUI() {
   document.getElementById('resultsSection').classList.remove('hidden');
   updateCounts();populateTopics();showStats();showThresholds();
   currentSegment='all';currentTopic='';searchTerm='';
-  document.getElementById('topicFilter').value='';document.getElementById('searchInput').value='';
+  document.getElementById('topicFilter').value='';document.getElementById('topicFilter').placeholder='Все темы';document.getElementById('searchInput').value='';
   updateActiveButton();displayResults();
 }
 
 function displayResults() {
   var f=rawData.filter(function(r){return r.name;});
-  if(currentTopic)f=f.filter(function(r){return r.topic===currentTopic;});
+  if(currentTopic){var ct=currentTopic.toLowerCase();f=f.filter(function(r){return r.topic&&r.topic.toLowerCase().indexOf(ct)>=0;});}
   if(searchTerm){var t=searchTerm.toLowerCase();f=f.filter(function(r){return r.name.toLowerCase().indexOf(t)>=0;});}
   if(currentSegment!=='all')f=f.filter(function(r){return getSegments(r).indexOf(currentSegment)>=0;});
   if(currentSegment==='stars'||currentSegment==='beacons')f.sort(function(a,b){return (b.localViewsCalc||0)-(a.localViewsCalc||0);});
@@ -377,12 +390,12 @@ function displayResults() {
   else if(currentSegment==='projectors')f.sort(function(a,b){return (b.subscribers||0)-(a.subscribers||0);});
   else f.sort(function(a,b){return (b.avgViews||0)-(a.avgViews||0);});
   var sn={stars:'Звёзды',beacons:'Маяки',flashlights:'Фонарики',projectors:'Прожекторы',all:'Все блогеры'};
-  document.getElementById('resultsCount').innerHTML='<b>'+f.length+'</b> блогеров — '+sn[currentSegment]+(currentTopic?' · тема: '+currentTopic:'');
+  document.getElementById('resultsCount').innerHTML='<b>'+f.length+'</b> блогеров — '+sn[currentSegment]+(currentTopic?' · тема содержит: «'+esc(currentTopic)+'»':'');
   if(f.length===0){document.getElementById('resultsTable').innerHTML='<div class="no-results"><div class="icon">🔍</div>Нет блогеров, соответствующих выбранным критериям</div>';return;}
-  var h='<table><thead><tr><th class="rank">#</th><th>Имя</th><th>Тема</th><th>Ссылка</th><th>Метрика</th></tr></thead><tbody>';
+  var h='<table><thead><tr><th class="rank">#</th><th>Имя</th><th>Примечание</th><th>Ссылка</th><th>Метрика</th></tr></thead><tbody>';
   for(var i=0;i<f.length;i++){var r=f[i];
     h+='<tr><td class="rank">'+(i+1)+'</td><td class="blogger-name">'+esc(r.name)+'</td>';
-    h+='<td>'+(r.topic?'<span class="topic-tag">'+esc(r.topic)+'</span>':'—')+'</td>';
+    h+='<td>'+(r.note?'<span class="topic-tag">'+esc(r.note)+'</span>':'—')+'</td>';
     var links=r.link?r.link.split(/\s+/).filter(function(s){return s.startsWith('http');}):[];
     h+='<td class="link-cell">';if(links.length){for(var j=0;j<links.length;j++){h+='<a href="'+escA(links[j])+'" target="_blank">'+esc(links[j])+'</a>';if(j<links.length-1)h+='<br>';}}else{h+='—';}h+='</td>';
     h+='<td class="metric-cell">';
@@ -422,15 +435,15 @@ function updateActiveButton(){var b=document.querySelectorAll('.seg-btn');for(va
 
 function exportCSV() {
   var f=rawData.filter(function(r){return r.name;});
-  if(currentTopic)f=f.filter(function(r){return r.topic===currentTopic;});
+  if(currentTopic){var ct=currentTopic.toLowerCase();f=f.filter(function(r){return r.topic&&r.topic.toLowerCase().indexOf(ct)>=0;});}
   if(searchTerm){var t=searchTerm.toLowerCase();f=f.filter(function(r){return r.name.toLowerCase().indexOf(t)>=0;});}
   if(currentSegment!=='all')f=f.filter(function(r){return getSegments(r).indexOf(currentSegment)>=0;});
   if(currentSegment==='stars'||currentSegment==='beacons')f.sort(function(a,b){return (b.localViewsCalc||0)-(a.localViewsCalc||0);});
   else if(currentSegment==='flashlights')f.sort(function(a,b){return (b.erv2||0)-(a.erv2||0);});
   else if(currentSegment==='projectors')f.sort(function(a,b){return (b.subscribers||0)-(a.subscribers||0);});
   else f.sort(function(a,b){return (b.avgViews||0)-(a.avgViews||0);});
-  var csv='Имя,Тема,Ссылка,Подписчики тыс,Доля местных %,Местные просмотры тыс,ERV\n';
-  for(var i=0;i<f.length;i++){var r=f[i];csv+='"'+(r.name||'').replace(/"/g,'""')+'","'+(r.topic||'').replace(/"/g,'""')+'","'+(r.link||'').replace(/"/g,'""')+'",'+(r.subscribers!==null?r.subscribers:'')+','+(r.localShare!==null?r.localShare:'')+','+(r.localViewsCalc!==null?r.localViewsCalc:'')+','+(r.erv2!==null?r.erv2:'')+'\n';}
+  var csv='Имя,Примечание,Ссылка,Подписчики тыс,Доля местных %,Местные просмотры тыс,ERV\n';
+  for(var i=0;i<f.length;i++){var r=f[i];csv+='"'+(r.name||'').replace(/"/g,'""')+'","'+(r.note||'').replace(/"/g,'""')+'","'+(r.link||'').replace(/"/g,'""')+'",'+(r.subscribers!==null?r.subscribers:'')+','+(r.localShare!==null?r.localShare:'')+','+(r.localViewsCalc!==null?r.localViewsCalc:'')+','+(r.erv2!==null?r.erv2:'')+'\n';}
   var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='bloggers_'+currentSegment+'.csv';a.click();URL.revokeObjectURL(url);
 }
 
@@ -445,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
   ua.addEventListener('drop',function(e){e.preventDefault();ua.classList.remove('dragover');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
   var sb=document.querySelectorAll('.seg-btn');
   for(var i=0;i<sb.length;i++){sb[i].addEventListener('click',function(){currentSegment=this.getAttribute('data-segment');updateActiveButton();displayResults();});}
-  document.getElementById('topicFilter').addEventListener('change',function(){currentTopic=this.value;displayResults();});
+  document.getElementById('topicFilter').addEventListener('input',function(){currentTopic=this.value.trim();if(!currentTopic)this.placeholder='Все темы';else this.placeholder='';displayResults();});
   document.getElementById('searchInput').addEventListener('input',function(){searchTerm=this.value;displayResults();});
   document.getElementById('exportBtn').addEventListener('click',exportCSV);
   document.getElementById('reloadBtn').addEventListener('click',loadData);
