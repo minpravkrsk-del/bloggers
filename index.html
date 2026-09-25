@@ -265,7 +265,6 @@ function mapColumns(headers) {
     else if (h.startsWith('Имя')) map.name = i;
     else if (h.startsWith('Ссылка')) map.link = i;
     else if (h === 'Тема' || h.startsWith('Тема')) map.topic = i;
-    else if (h === 'Примечание' || h.startsWith('Примечание')) map.note = i;
     else if (h.startsWith('Подписчики всего')) map.subscribers = i;
     else if (h.startsWith('Доля местных')) map.localShare = i;
     else if (h.startsWith('Местные подписчики')) map.localSubs = i;
@@ -293,7 +292,6 @@ function parseData(rows) {
     rawData.push({
       name: String(get('name')||'').trim(), link: String(get('link')||'').trim(),
       topic: get('topic')!==undefined&&get('topic')!==null ? String(get('topic')).trim() : null,
-      note: get('note')!==undefined&&get('note')!==null ? String(get('note')).trim() : null,
       subscribers: num(get('subscribers')), localShare: num(get('localShare')),
       localSubs: num(get('localSubs')), maxViews: num(get('maxViews')),
       minViews: num(get('minViews')), avgViews: num(get('avgViews')),
@@ -392,10 +390,10 @@ function displayResults() {
   var sn={stars:'Звёзды',beacons:'Маяки',flashlights:'Фонарики',projectors:'Прожекторы',all:'Все блогеры'};
   document.getElementById('resultsCount').innerHTML='<b>'+f.length+'</b> блогеров — '+sn[currentSegment]+(currentTopic?' · тема содержит: «'+esc(currentTopic)+'»':'');
   if(f.length===0){document.getElementById('resultsTable').innerHTML='<div class="no-results"><div class="icon">🔍</div>Нет блогеров, соответствующих выбранным критериям</div>';return;}
-  var h='<table><thead><tr><th class="rank">#</th><th>Имя</th><th>Примечание</th><th>Ссылка</th><th>Метрика</th></tr></thead><tbody>';
+  var h='<table><thead><tr><th class="rank">#</th><th>Имя</th><th>Тема</th><th>Ссылка</th><th>Метрика</th></tr></thead><tbody>';
   for(var i=0;i<f.length;i++){var r=f[i];
     h+='<tr><td class="rank">'+(i+1)+'</td><td class="blogger-name">'+esc(r.name)+'</td>';
-    h+='<td>'+(r.note?'<span class="topic-tag">'+esc(r.note)+'</span>':'—')+'</td>';
+    h+='<td>'+(r.topic?'<span class="topic-tag">'+esc(r.topic)+'</span>':'—')+'</td>';
     var links=r.link?r.link.split(/\s+/).filter(function(s){return s.startsWith('http');}):[];
     h+='<td class="link-cell">';if(links.length){for(var j=0;j<links.length;j++){h+='<a href="'+escA(links[j])+'" target="_blank">'+esc(links[j])+'</a>';if(j<links.length-1)h+='<br>';}}else{h+='—';}h+='</td>';
     h+='<td class="metric-cell">';
@@ -442,8 +440,8 @@ function exportCSV() {
   else if(currentSegment==='flashlights')f.sort(function(a,b){return (b.erv2||0)-(a.erv2||0);});
   else if(currentSegment==='projectors')f.sort(function(a,b){return (b.subscribers||0)-(a.subscribers||0);});
   else f.sort(function(a,b){return (b.avgViews||0)-(a.avgViews||0);});
-  var csv='Имя,Примечание,Ссылка,Подписчики тыс,Доля местных %,Местные просмотры тыс,ERV\n';
-  for(var i=0;i<f.length;i++){var r=f[i];csv+='"'+(r.name||'').replace(/"/g,'""')+'","'+(r.note||'').replace(/"/g,'""')+'","'+(r.link||'').replace(/"/g,'""')+'",'+(r.subscribers!==null?r.subscribers:'')+','+(r.localShare!==null?r.localShare:'')+','+(r.localViewsCalc!==null?r.localViewsCalc:'')+','+(r.erv2!==null?r.erv2:'')+'\n';}
+  var csv='Имя,Тема,Ссылка,Подписчики тыс,Доля местных %,Местные просмотры тыс,ERV\n';
+  for(var i=0;i<f.length;i++){var r=f[i];csv+='"'+(r.name||'').replace(/"/g,'""')+'","'+(r.topic||'').replace(/"/g,'""')+'","'+(r.link||'').replace(/"/g,'""')+'",'+(r.subscribers!==null?r.subscribers:'')+','+(r.localShare!==null?r.localShare:'')+','+(r.localViewsCalc!==null?r.localViewsCalc:'')+','+(r.erv2!==null?r.erv2:'')+'\n';}
   var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='bloggers_'+currentSegment+'.csv';a.click();URL.revokeObjectURL(url);
 }
 
