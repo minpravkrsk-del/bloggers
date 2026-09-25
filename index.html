@@ -215,7 +215,7 @@ async function checkPassword(input) {
   pwdBtn.disabled = true;
   pwdError.textContent = '';
   try {
-    var response = await fetch(WORKER_URL, {headers: {'X-Password': input}});
+    var response = await fetch(WORKER_URL, {mode: 'cors', headers: {'X-Password': input}});
     if (response.status === 401) {
       pwdError.textContent = 'Неверный пароль';
       pwdBtn.textContent = 'Войти'; pwdBtn.disabled = false;
@@ -406,7 +406,7 @@ function loadData() {
   document.getElementById('loadingArea').classList.remove('hidden');
   document.getElementById('uploadArea').classList.add('hidden');
   document.getElementById('loadingHint').textContent = 'Загрузка данных…';
-  fetch(WORKER_URL, {headers: {'X-Password': userPassword}})
+  fetch(WORKER_URL, {mode: 'cors', headers: {'X-Password': userPassword}})
     .then(function(r){if(!r.ok)throw new Error('Ошибка '+r.status);return r.arrayBuffer();})
     .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))throw new Error('Ошибка обработки');showUI();})
     .catch(function(err){console.error(err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные ('+err.message+'). Загрузите файл вручную.');});
