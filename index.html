@@ -201,54 +201,55 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 
 // === CONFIG ===
-var PASSWORD_HASH = '53c50b6459766baebb2c8e392324da0a78305651c0a0d927dc7cfaedfd397a93';
-var YANDEX_DISK_URL = 'https://disk.yandex.ru/i/Vh9KMW3lGSfjnQ';
-var YANDEX_API = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=';
-
+var WORKER_URL = 'https://bloggers-data.minpravkrsk.workers.dev';
+var userPassword = '';
 var rawData = [], columnMap = {}, medians = {};
 var currentSegment = 'all', currentTopic = '', searchTerm = '';
-var unlocked = false;
 
-// === Password check ===
+// === Password check + data loading ===
 async function checkPassword(input) {
-  var encoder = new TextEncoder();
-  var data = encoder.encode(input);
-  var hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  var hashHex = Array.from(new Uint8Array(hashBuffer)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-  return hashHex === PASSWORD_HASH;
+  userPassword = input;
+  var pwdBtn = document.getElementById('pwdBtn');
+  var pwdError = document.getElementById('pwdError');
+  pwdBtn.textContent = 'Загрузка…';
+  pwdBtn.disabled = true;
+  pwdError.textContent = '';
+  try {
+    var response = await fetch(WORKER_URL, {headers: {'X-Password': input}});
+    if (response.status === 401) {
+      pwdError.textContent = 'Неверный пароль';
+      pwdBtn.textContent = 'Войти'; pwdBtn.disabled = false;
+      document.getElementById('pwdInput').value = '';
+      document.getElementById('pwdInput').focus();
+      return;
+    }
+    if (!response.ok) throw new Error('Ошибка ' + response.status);
+    var buf = await response.arrayBuffer();
+    var data = new Uint8Array(buf);
+    var wb = XLSX.read(data, {type: 'array'});
+    var sh = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(sh, {header: 1, defval: null});
+    if (rows.length < 2) throw new Error('Файл пуст');
+    if (!parseData(rows)) throw new Error('Ошибка обработки');
+    document.getElementById('pwdScreen').classList.add('hidden');
+    document.getElementById('appContent').classList.remove('hidden');
+    showUI();
+  } catch (err) {
+    console.error(err);
+    pwdError.textContent = 'Ошибка: ' + err.message;
+    pwdBtn.textContent = 'Войти'; pwdBtn.disabled = false;
+  }
 }
 
 function initPassword() {
   var pwdInput = document.getElementById('pwdInput');
   var pwdBtn = document.getElementById('pwdBtn');
   var pwdError = document.getElementById('pwdError');
-
   function tryUnlock() {
     var val = pwdInput.value;
     if (!val) { pwdError.textContent = 'Введите пароль'; return; }
-    pwdError.textContent = '';
-    pwdBtn.textContent = 'Проверка…';
-    pwdBtn.disabled = true;
-    checkPassword(val).then(function(ok) {
-      if (ok) {
-        unlocked = true;
-        document.getElementById('pwdScreen').classList.add('hidden');
-        document.getElementById('appContent').classList.remove('hidden');
-        loadData();
-      } else {
-        pwdError.textContent = 'Неверный пароль';
-        pwdBtn.textContent = 'Войти';
-        pwdBtn.disabled = false;
-        pwdInput.value = '';
-        pwdInput.focus();
-      }
-    }).catch(function(err) {
-      pwdError.textContent = 'Ошибка проверки';
-      pwdBtn.textContent = 'Войти';
-      pwdBtn.disabled = false;
-    });
+    checkPassword(val);
   }
-
   pwdBtn.addEventListener('click', tryUnlock);
   pwdInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryUnlock(); });
   pwdInput.focus();
@@ -399,25 +400,16 @@ function escA(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').r
 function showError(m){var b=document.getElementById('errorBox');b.textContent=m;b.classList.remove('hidden');}
 function hideError(){document.getElementById('errorBox').classList.add('hidden');}
 
-function loadFromYandex(useProxy) {
-  var proxy = useProxy ? 'https://api.allorigins.win/raw?url=' : '';
-  var apiUrl = YANDEX_API + encodeURIComponent(YANDEX_DISK_URL);
-  var fetchUrl = useProxy ? proxy + encodeURIComponent(apiUrl) : apiUrl;
-  return fetch(fetchUrl)
-    .then(function(r){if(!r.ok)throw new Error('API '+r.status);return r.json();})
-    .then(function(d){if(!d.href)throw new Error('Нет ссылки');document.getElementById('loadingHint').textContent='Скачивание…';var dlUrl=useProxy?proxy+encodeURIComponent(d.href):d.href;return fetch(dlUrl);})
-    .then(function(r){if(!r.ok)throw new Error('DL '+r.status);document.getElementById('loadingHint').textContent='Обработка…';return r.arrayBuffer();})
-    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))throw new Error('Ошибка обработки');showUI();});
-}
-
 function loadData() {
+  if (!userPassword) return;
   hideError();
   document.getElementById('loadingArea').classList.remove('hidden');
   document.getElementById('uploadArea').classList.add('hidden');
-  document.getElementById('loadingHint').textContent='Подключение…';
-  loadFromYandex(false)
-    .catch(function(err){console.log('Direct failed:',err.message);document.getElementById('loadingHint').textContent='Повтор через прокси…';return loadFromYandex(true);})
-    .catch(function(err){console.error('All failed:',err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные ('+err.message+'). Загрузите файл вручную.');});
+  document.getElementById('loadingHint').textContent = 'Загрузка данных…';
+  fetch(WORKER_URL, {headers: {'X-Password': userPassword}})
+    .then(function(r){if(!r.ok)throw new Error('Ошибка '+r.status);return r.arrayBuffer();})
+    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))throw new Error('Ошибка обработки');showUI();})
+    .catch(function(err){console.error(err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные ('+err.message+'). Загрузите файл вручную.');});
 }
 
 function handleFile(file) {
