@@ -231,7 +231,7 @@ async function checkPassword(input) {
     var sh = wb.Sheets[wb.SheetNames[0]];
     var rows = XLSX.utils.sheet_to_json(sh, {header: 1, defval: null});
     if (rows.length < 2) throw new Error('Файл пуст');
-    if (!parseData(rows)) throw new Error('Ошибка обработки');
+    if (!parseData(rows, sh)) throw new Error('Ошибка обработки');
     document.getElementById('pwdScreen').classList.add('hidden');
     document.getElementById('appContent').classList.remove('hidden');
     showUI();
@@ -258,10 +258,11 @@ function initPassword() {
 
 // === Column mapping ===
 function mapColumns(headers) {
-  var map = {}, ervCount = 0;
+  var map = {};
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i] || '').trim();
-    if (h === 'ERV') { ervCount++; if (ervCount === 1) map.erv1 = i; else map.erv2 = i; }
+    if (h === 'ERV' || h.startsWith('ERV')) map.erv1 = i;
+    else if (h === 'ER') map.erv2 = i;
     else if (h.startsWith('Имя')) map.name = i;
     else if (h.startsWith('Ссылка')) map.link = i;
     else if (h === 'Тема' || h.startsWith('Тема')) map.topic = i;
@@ -283,22 +284,38 @@ function fmtPct(v) { return v === null ? '—' : Number(v).toFixed(2) + '%'; }
 function fmtK(v) { return v === null ? '—' : Number(v).toFixed(1) + ' тыс'; }
 function getMedian(arr) { var v = arr.filter(function(x){return x!==null&&x!==undefined&&!isNaN(x)}); if(!v.length)return 0; v.sort(function(a,b){return a-b}); var m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
 
-function parseData(rows) {
+function parseData(rows, sh) {
   columnMap = mapColumns(rows[0]);
   if (columnMap.name === undefined) { showError('Не найден столбец «Имя». Проверьте структуру файла.'); return false; }
+  var calcFormulaRows = {};
+  if (sh && columnMap.localViewsCalc !== undefined && sh['!ref']) {
+    try {
+      var range = XLSX.utils.decode_range(sh['!ref']);
+      var colL = XLSX.utils.encode_col(columnMap.localViewsCalc);
+      for (var R = range.s.r + 1; R <= range.e.r; R++) {
+        var cell = sh[colL + (R + 1)];
+        if (cell && cell.f) calcFormulaRows[R] = true;
+      }
+    } catch(e) {}
+  }
   rawData = [];
   for (var i = 1; i < rows.length; i++) {
     var row = rows[i]; if (!row || !row[columnMap.name]) continue;
     function get(k) { var idx = columnMap[k]; return idx !== undefined ? row[idx] : undefined; }
+    var subs = num(get('subscribers')); if (subs !== null) subs = subs / 1000;
+    var lsubs = num(get('localSubs')); if (lsubs !== null) lsubs = lsubs / 1000;
+    var calc = num(get('localViewsCalc'));
+    if (calc !== null && calcFormulaRows[i]) calc = calc / 1000;
+    var erv2v = num(get('erv2')); if (erv2v !== null) { erv2v = erv2v * 100; if (erv2v === 0 && num(get('avgReactions')) === null) erv2v = null; }
     rawData.push({
       name: String(get('name')||'').trim(), link: String(get('link')||'').trim(),
       topic: get('topic')!==undefined&&get('topic')!==null ? String(get('topic')).trim() : null,
       note: get('note')!==undefined&&get('note')!==null ? String(get('note')).trim() : null,
-      subscribers: num(get('subscribers')), localShare: num(get('localShare')),
-      localSubs: num(get('localSubs')), maxViews: num(get('maxViews')),
+      subscribers: subs, localShare: num(get('localShare')),
+      localSubs: lsubs, maxViews: num(get('maxViews')),
       minViews: num(get('minViews')), avgViews: num(get('avgViews')),
-      avgReactions: num(get('avgReactions')), localViewsCalc: num(get('localViewsCalc')),
-      erv1: num(get('erv1')), erv2: num(get('erv2'))
+      avgReactions: num(get('avgReactions')), localViewsCalc: calc,
+      erv1: num(get('erv1')), erv2: erv2v
     });
   }
   medians = {
@@ -421,13 +438,13 @@ function loadData() {
   document.getElementById('loadingHint').textContent = 'Загрузка данных…';
   fetch(WORKER_URL, {mode: 'cors', headers: {'X-Password': userPassword}})
     .then(function(r){if(!r.ok)throw new Error('Ошибка '+r.status);return r.arrayBuffer();})
-    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows))throw new Error('Ошибка обработки');showUI();})
+    .then(function(buf){var data=new Uint8Array(buf);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2)throw new Error('Файл пуст');if(!parseData(rows,sh))throw new Error('Ошибка обработки');showUI();})
     .catch(function(err){console.error(err);document.getElementById('loadingArea').classList.add('hidden');document.getElementById('uploadArea').classList.remove('hidden');showError('Не удалось загрузить данные ('+err.message+'). Загрузите файл вручную.');});
 }
 
 function handleFile(file) {
   hideError();var reader=new FileReader();
-  reader.onload=function(e){try{var data=new Uint8Array(e.target.result);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2){showError('Файл пуст');return;}if(!parseData(rows))return;showUI();}catch(err){showError('Ошибка: '+err.message);}};
+  reader.onload=function(e){try{var data=new Uint8Array(e.target.result);var wb=XLSX.read(data,{type:'array'});var sh=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null});if(rows.length<2){showError('Файл пуст');return;}if(!parseData(rows,sh))return;showUI();}catch(err){showError('Ошибка: '+err.message);}};
   reader.readAsArrayBuffer(file);
 }
 
