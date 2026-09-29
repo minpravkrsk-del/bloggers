@@ -27,22 +27,35 @@ header h1{font-size:20px;color:#0e2a52}
 .stat{background:#fff;border-radius:10px;padding:12px 20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .stat .v{font-size:22px;font-weight:700;color:#0e2a52}
 .stat .l{font-size:12px;color:#687}
+.chips-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.chip{padding:8px 18px;border-radius:20px;border:1px solid #cfd8e3;cursor:pointer;font-size:14px;font-weight:600}
+.chip-seg.stars{background:#fdf1d7;color:#8a6d1a;border-color:#e8d5a0}
+.chip-seg.stars:hover{background:#f7e6b8}
+.chip-seg.stars.active{background:#8a6d1a;color:#fff;border-color:#8a6d1a}
+.chip-seg.beacons{background:#e3efff;color:#1a4a8f;border-color:#b8d2f5}
+.chip-seg.beacons:hover{background:#cfe1fb}
+.chip-seg.beacons.active{background:#1a4a8f;color:#fff;border-color:#1a4a8f}
+.chip-seg.flashlights{background:#e6f7ec;color:#1e7a46;border-color:#b5e2c6}
+.chip-seg.flashlights:hover{background:#cdeedd}
+.chip-seg.flashlights.active{background:#1e7a46;color:#fff;border-color:#1e7a46}
+.chip-seg.projectors{background:#f3e8fb;color:#6b2fa0;border-color:#dcbdef}
+.chip-seg.projectors:hover{background:#e8d4f4}
+.chip-seg.projectors.active{background:#6b2fa0;color:#fff;border-color:#6b2fa0}
+.chip-desc{font-size:12px;color:#556;margin-bottom:12px;line-height:1.6}
+.chip-desc b{white-space:nowrap}
 .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.chip{padding:7px 14px;border-radius:20px;border:1px solid #cfd8e3;background:#fff;cursor:pointer;font-size:13px}
-.chip.active{background:#1a4a8f;color:#fff;border-color:#1a4a8f}
 .controls input[type=text]{padding:8px 12px;border:1px solid #cfd8e3;border-radius:8px;font-size:13px}
-#topicInput{width:260px}
-#nameInput{width:190px}
-.lbl{font-size:13px;color:#456}
+#nameInput{width:180px}
+#descInput{width:250px}
 .controls label{display:flex;align-items:center;gap:6px;font-size:13px}
+#btnShowAll{padding:8px 16px;border:1px solid #cfd8e3;background:#fff;border-radius:8px;cursor:pointer;font-size:13px}
+#btnShowAll:hover{background:#eef3f9}
 #btnExport{margin-left:auto;padding:9px 18px;background:#1a4a8f;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:13px}
 #btnExport:hover{background:#123a6d}
 #loadError{display:none;background:#fdecea;color:#a1260f;border:1px solid #f5c6bd;border-radius:8px;padding:12px;margin-bottom:12px}
 #loadError .btn{display:inline-block;margin-top:8px;padding:8px 16px;background:#fff;border:1px solid #e0b4ab;border-radius:8px;cursor:pointer;font-size:13px}
 #manualUpload{display:none;background:#fff;border:2px dashed #cfd8e3;border-radius:10px;padding:24px;text-align:center;margin-bottom:14px}
 #manualUpload .btn{display:inline-block;padding:10px 20px;background:#eef3f9;border:1px solid #cfd8e3;border-radius:8px;cursor:pointer;font-size:14px}
-#mediansLine{font-size:12px;color:#778;margin-bottom:10px;line-height:1.5}
-#mediansLine b{color:#456}
 #rowsInfo{font-size:13px;color:#687;margin-bottom:8px}
 .tablewrap{overflow:auto;max-height:75vh;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -57,14 +70,11 @@ tbody tr:hover{background:#f0f6ff}
 .td-desc{max-width:300px;color:#556;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .td-badges{min-width:280px}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;white-space:nowrap;margin:1px 3px 1px 0;cursor:help}
-.b-viral{background:#fde8d8;color:#a4530a}
 .b-hit{background:#fbe3e3;color:#a1260f}
 .b-engsusp{background:#fce7f3;color:#9d2467}
 .b-inactive{background:#f0f0f2;color:#666}
 .b-lowlocal{background:#e8edf5;color:#4a5a78}
-.b-rare{background:#efedf8;color:#5b4a8f}
 .b-freq{background:#f4f6f9;color:#566;border:1px solid #e3e8ef}
-.b-reach{background:#eef4ef;color:#3d6b4f}
 .b-more{background:#e3e8ef;color:#456;font-weight:600}
 .b-stars{background:#fdf1d7;color:#8a6d1a}
 .b-beacons{background:#e3efff;color:#1a4a8f}
@@ -72,21 +82,15 @@ tbody tr:hover{background:#f0f6ff}
 .b-projectors{background:#f3e8fb;color:#6b2fa0}
 .empty{text-align:center;color:#889;padding:30px}
 #modal{position:fixed;inset:0;background:rgba(14,42,82,.45);display:none;align-items:center;justify-content:center;z-index:90}
-.modal-box{background:#fff;border-radius:14px;padding:28px;max-width:660px;width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
-.modal-box h2{font-size:19px;color:#0e2a52;margin-bottom:10px}
-.modal-box h3{font-size:15px;color:#0e2a52;margin:16px 0 8px}
+.modal-box{background:#fff;border-radius:14px;padding:28px;max-width:660px;width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative}
+.modal-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:0;background:#eef3f9;color:#456;font-size:16px;cursor:pointer}
+.modal-x:hover{background:#dde5ee}
+.modal-box h2{font-size:19px;color:#0e2a52;margin-bottom:10px;padding-right:40px}
 .modal-box a{color:#1a4a8f}
-.mdesc{color:#556;font-size:13px;margin-bottom:10px}
-.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:13px;line-height:1.5}
-.mgrid small{color:#889}
+.mdesc{color:#556;font-size:13px;margin-bottom:10px;white-space:pre-wrap}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;font-size:14px;line-height:1.5}
+.mgrid small{color:#889;font-size:11px}
 .mgrid i{color:#a00}
-.comp-row{display:grid;grid-template-columns:1fr 44px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
-.comp-row .bar{grid-column:1/3;width:100%}
-.comp-row small{color:#889}
-.comp-val{text-align:right;font-weight:600}
-#modalClose{margin-top:18px;padding:10px 24px;background:#1a4a8f;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:14px}
-.bar{height:8px;background:#edf1f6;border-radius:4px;overflow:hidden}
-.bar-fill{height:100%;background:linear-gradient(90deg,#1a4a8f,#4a8fd4);border-radius:4px}
 footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
 </style>
 </head>
@@ -121,34 +125,38 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
   <label class="btn">Выбрать файл<input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none"></label>
 </div>
 
-<div class="controls" id="segChips">
-  <span class="chip active" data-seg="all" title="Все блогеры трека">Все</span>
-  <span class="chip" data-seg="stars" title="Звёзды: местный охват (медианные местные просмотры) и вовлечённость выше медиан по треку">★ Звёзды</span>
-  <span class="chip" data-seg="beacons" title="Маяки: местный охват выше медианы, вовлечённость ниже">▲ Маяки</span>
-  <span class="chip" data-seg="flashlights" title="Фонарики: местный охват ниже медианы, вовлечённость выше">✦ Фонарики</span>
-  <span class="chip" data-seg="projectors" title="Прожекторы: общий охват выше медианы, но доля местных низкая — светит мимо местных">◎ Прожекторы</span>
-  <span class="chip" data-seg="viral" title="Перекос среднее/медиана просмотров > 10× или максимальный пост > 20× среднего — охват держится на хитах">⚠️ Охват от хитов</span>
-  <span class="chip" data-seg="inactive" title="Ведение блога прекращено">⛔ Неактивные</span>
-  <input type="text" id="topicInput" list="topicList" placeholder="Темы через запятую…">
+<div class="chips-row" id="segChips">
+  <span class="chip chip-seg stars" data-seg="stars" title="Местный охват (медианные местные просмотры) и вовлечённость выше медиан по треку">★ Звёзды</span>
+  <span class="chip chip-seg beacons" data-seg="beacons" title="Местный охват выше медианы, вовлечённость ниже">▲ Маяки</span>
+  <span class="chip chip-seg flashlights" data-seg="flashlights" title="Местный охват ниже медианы, вовлечённость выше">✦ Фонарики</span>
+  <span class="chip chip-seg projectors" data-seg="projectors" title="Общий охват выше медианы, но доля местных низкая — светит мимо местных">◎ Прожекторы</span>
+</div>
+<div class="chip-desc">
+  <b>★ Звёзды</b> — местный охват и вовлечённость выше медиан ·
+  <b>▲ Маяки</b> — охват выше, вовлечённость ниже ·
+  <b>✦ Фонарики</b> — охват ниже, вовлечённость выше ·
+  <b>◎ Прожекторы</b> — большой охват, но мало местных
+</div>
+
+<div class="controls">
+  <button id="btnShowAll">Показать все</button>
   <input type="text" id="nameInput" placeholder="Имя содержит…">
+  <input type="text" id="descInput" list="topicList" placeholder="Описание содержит…">
   <label><input type="checkbox" id="hideInactive"> скрыть неактивных</label>
   <button id="btnExport">⬇ CSV</button>
   <datalist id="topicList"></datalist>
 </div>
 
-<div id="mediansLine"></div>
 <div id="rowsInfo">Показано: <span id="rowsCount">—</span>. Строки отсортированы по рейтингу — сверху лучшие. Нажмите на строку для деталей.</div>
 
 <div class="tablewrap">
 <table>
-  <thead><tr><th>#</th><th>Имя</th><th></th><th>Описание</th><th>Пометки</th></tr></thead>
+  <thead><tr><th>#</th><th>Имя</th><th></th><th>Описание</th><th>Примечание</th></tr></thead>
   <tbody id="tbody"></tbody>
 </table>
 </div>
 
-<div id="modal"><div class="modal-box"><div id="modalBody"></div>
-  <button id="modalClose">Закрыть</button>
-</div></div>
+<div id="modal"><div class="modal-box"><button class="modal-x" id="modalX" title="Закрыть">✕</button><div id="modalBody"></div></div></div>
 
 <footer>Аналитика блогеров ВК · Красноярский край · рейтинг на основе медианных просмотров и вовлечённости</footer>
 </div>
@@ -230,7 +238,7 @@ var FREQ_MAP = {
   '1 раз в месяц': 2, '2 раза в месяц': 3, '3 раза в месяц': 4, '4 раза в месяц': 5,
   '1 раз в неделю': 6, '2 раза в неделю': 7, '3 раза в неделю': 8, '4 раза в неделю': 9, '5 раз в неделю': 10
 };
-var FREQ_SHORT = {0:'⛔ прекращено',1:'редко',2:'1/мес',3:'2/мес',4:'3/мес',5:'4/мес',6:'1/нед',7:'2/нед',8:'3/нед',9:'4/нед',10:'5/нед'};
+var FREQ_SHORT = {0:'прекращено',1:'редко',2:'1/мес',3:'2/мес',4:'3/мес',5:'4/мес',6:'1/нед',7:'2/нед',8:'3/нед',9:'4/нед',10:'5/нед'};
 
 function parseGrid(grid) {
   var headers = [];
@@ -342,8 +350,7 @@ function analyze(rows) {
     r.engSusp = eg !== null && eg > 15;
     r.inactive = r.freqRaw === 'ведение блога прекращено';
     r.lowLocal = r.share !== null && r.share < 20;
-    r.rare = r.freqScore === 1 || r.freqScore === 2;
-    r.reachLevel = r.medv === null ? null : (r.medv > 1.41 * meds.reach ? 'above' : (r.medv < 0.71 * meds.reach ? 'below' : 'around'));
+    r.rare = r.freqScore === 1;
   });
   return meds;
 }
@@ -422,10 +429,9 @@ function handleData(ab){
     meds = analyze(rows);
     buildTopicList();
     updateStats();
-    renderMediansLine();
     applyFilters();
     $('loading').style.display = 'none';
-    $('content').style.display = 'block';
+    $('mainScreen').style.display = 'block';
   } catch(e) {
     $('loading').style.display = 'none';
     $('loadError').style.display = 'block';
@@ -452,20 +458,14 @@ function buildTopicList(){
 
 function updateStats(){
   var classified = rows.filter(function(r){ return r.segments.length > 0; }).length;
-  var viral = rows.filter(function(r){ return r.viral || r.hit; }).length;
+  var hits = rows.filter(function(r){ return r.viral || r.hit; }).length;
   $('statsTotal').textContent = rows.length;
   $('statsClassified').textContent = classified;
-  $('statsViral').textContent = viral;
+  $('statsViral').textContent = hits;
 }
 
 // ---------- Пометки ----------
 var SEG_LABEL = { stars:'★ Звёзды', beacons:'▲ Маяки', flashlights:'✦ Фонарики', projectors:'◎ Прожекторы' };
-var SEG_TIPS = {
-  stars: 'Звёзды: местный охват (медианные местные просмотры) и вовлечённость выше медиан по треку',
-  beacons: 'Маяки: местный охват выше медианы, вовлечённость ниже',
-  flashlights: 'Фонарики: местный охват ниже медианы, вовлечённость выше',
-  projectors: 'Прожекторы: общий охват выше медианы, но доля местных низкая — светит мимо местных'
-};
 
 function badgeList(r, withSegments){
   var list = [];
@@ -473,10 +473,10 @@ function badgeList(r, withSegments){
   if (r.engSusp) list.push('<span class="badge b-engsusp" title="Реакций заметно больше, чем ожидается от такой аудитории: медианные реакции > 15% медианных просмотров. Возможна накрутка или очень узкий круг (друзья лайкают, не глядя)">🧐 реакций слишком много</span>');
   if (r.inactive) list.push('<span class="badge b-inactive" title="Ведение блога прекращено">⛔ неактивен</span>');
   if (withSegments) r.segments.forEach(function(s){
-    list.push('<span class="badge b-'+s+'" title="'+SEG_TIPS[s]+'">'+SEG_LABEL[s]+'</span>');
+    list.push('<span class="badge b-'+s+'" title="'+SEG_LABEL[s]+': '+(s==='stars'?'местный охват и вовлечённость выше медиан':s==='beacons'?'местный охват выше медианы, вовлечённость ниже':s==='flashlights'?'местный охват ниже медианы, вовлечённость выше':'общий охват выше медианы, но мало местных')+'">'+SEG_LABEL[s]+'</span>');
   });
   if (r.lowLocal) list.push('<span class="badge b-lowlocal" title="Меньше 20% аудитории — местные: значительная часть охвата уйдёт за пределы края">📉 местных <20%</span>');
-  if (r.freqScore === 1) list.push('<span class="badge b-freq" title="Периодичность: редко">редко</span>');
+  if (r.rare) list.push('<span class="badge b-freq" title="Периодичность: не чаще одного поста в месяц (в таблице — метка «редко», 1–4 поста за 5 месяцев)">редкие публикации</span>');
   return list;
 }
 
@@ -486,11 +486,7 @@ function applyFilters(){
   var st = searchTerm.toLowerCase();
   filtered = rows.filter(function(r){
     if (hideInactive && r.inactive) return false;
-    if (currentSegment !== 'all') {
-      if (currentSegment === 'viral') { if (!r.viral && !r.hit) return false; }
-      else if (currentSegment === 'inactive') { if (!r.inactive) return false; }
-      else if (r.segments.indexOf(currentSegment) < 0) return false;
-    }
+    if (currentSegment !== 'all' && r.segments.indexOf(currentSegment) < 0) return false;
     if (st && r.name.toLowerCase().indexOf(st) < 0) return false;
     if (phrases.length) {
       var d = r.desc ? r.desc.toLowerCase() : '';
@@ -499,7 +495,6 @@ function applyFilters(){
     }
     return true;
   });
-  // порядок строк = рейтинг: сверху лучшие
   filtered.sort(function(a,b){ return b.score - a.score; });
   renderTable();
 }
@@ -507,7 +502,6 @@ function applyFilters(){
 // ---------- Форматирование ----------
 function fmtK(v){ if (v===null) return '—'; if (v>=100) return Math.round(v).toLocaleString('ru-RU'); if (v>=10) return v.toFixed(1); return v.toFixed(2); }
 function fmtPct(v){ if (v===null) return '—'; return v.toFixed(2)+'%'; }
-function fmtX(v){ if (v===null) return '—'; return v.toFixed(1)+'×'; }
 function fmtInt(v){ if (v===null) return '—'; return Math.round(v).toLocaleString('ru-RU'); }
 
 function renderTable(){
@@ -536,53 +530,39 @@ function renderTable(){
   });
 }
 
-// ---------- Модалка ----------
+// ---------- Карточка ----------
+function closeModal(){ $('modal').style.display = 'none'; }
+
 function showModal(r){
-  var badges = badgeList(r, true).join(' ') || '—';
-  var compRows = [
-    ['Местный охват (мед. местные просмотры)', r.comps.localreach, 30],
-    ['Вовлечённость (мед.реакции / мед.просмотры)', r.comps.eng, 25],
-    ['Доля местных', r.comps.share, 15],
-    ['Общий охват (медиана просмотров)', r.comps.reach, 10],
-    ['Стабильность (перекосы)', r.comps.stability, 10],
-    ['Активность', r.comps.activity, 10]
-  ];
-  var compHtml = compRows.map(function(c){
-    var v = c[1];
-    return '<div class="comp-row"><span class="comp-name">'+c[0]+' <small>(вес '+c[2]+')</small></span>' +
-      '<span class="comp-val">'+(v!==null?Math.round(v):'—')+'</span>' +
-      '<div class="bar"><div class="bar-fill" style="width:'+(v!==null?Math.round(v):0)+'%"></div></div></div>';
-  }).join('');
   var nd = '<i>нет данных</i>';
+  var lsubs = r.lsubs, approx = false;
+  if (lsubs === null && r.share !== null && r.subs !== null) { lsubs = r.subs * r.share / 100; approx = true; }
+  var subsLine;
+  if (r.subs !== null) {
+    subsLine = '<b>Подписчики</b>: всего <b>'+fmtK(r.subs)+'</b> тыс';
+    if (lsubs !== null) subsLine += ' / местных <b>'+fmtK(lsubs)+'</b> тыс'+(approx?' ≈':'')+(r.share!==null?' ('+r.share+'%)':'');
+    subsLine += ' <small>(справочно, в рейтинге не участвует)</small>';
+  } else {
+    subsLine = '<b>Подписчики</b>: ' + nd;
+  }
   $('modalBody').innerHTML =
     '<h2>'+escapeHtml(r.name)+'</h2>' +
     (r.link?'<p><a href="'+escapeHtml(r.link)+'" target="_blank" rel="noopener">'+escapeHtml(r.link)+'</a></p>':'') +
     (r.desc?'<p class="mdesc">'+escapeHtml(r.desc)+'</p>':'') +
     '<div class="mgrid">' +
-      '<div><b>Рейтинг</b> '+(r.score>0?r.score.toFixed(1):'—')+' <small>(учтено '+r.coverage+'% веса)</small></div>' +
-      '<div><b>Пометки</b></div><div style="grid-column:1/3">'+badges+'</div>' +
-      '<div><b>Местный охват</b> '+(r.localreach!==null?fmtInt(r.localreach)+' <small>местных мед.просмотров</small>':nd)+'</div>' +
-      '<div><b>Медиана просмотров</b> '+fmtInt(r.medv)+'</div>' +
-      '<div><b>Медиана реакций</b> '+fmtInt(r.medr)+'</div>' +
-      '<div><b>Вовлечённость (мед.)</b> '+(r.eng!==null?fmtPct(r.eng)+' <small>реакции/просмотры</small>':nd)+'</div>' +
-      '<div><b>Доля местных</b> '+(r.share!==null?r.share+'%':nd)+'</div>' +
-      '<div><b>Подписчики</b> '+(r.subs!==null?fmtK(r.subs)+' <small>тыс — справочно</small>':nd)+'</div>' +
-      '<div><b>ERV (сред.)</b> '+(r.erv!==null?fmtPct(r.erv)+' <small>справочно</small>':nd)+'</div>' +
-      '<div><b>ER (сред.)</b> '+(r.er!==null?fmtPct(r.er)+' <small>справочно</small>':nd)+'</div>' +
-      '<div><b>Средние просмотры</b> '+fmtInt(r.avg_v)+'</div>' +
-      '<div><b>Средние реакции</b> '+fmtInt(r.avg_r)+'</div>' +
-      '<div><b>Max/Min пост</b> '+fmtInt(r.max_v)+' / '+fmtInt(r.min_v)+'</div>' +
-      '<div><b>Постов за 5 мес</b> '+fmtInt(r.posts)+' <small>· периодичность: '+escapeHtml(r.freqRaw||'—')+'</small></div>' +
-      '<div><b>Перекосы ср/мед</b> '+fmtX(r.skewv)+' просмотры · '+fmtX(r.skewr)+' реакции</div>' +
-    '</div>' +
-    '<h3>Компоненты рейтинга</h3>' + compHtml;
+      '<div style="grid-column:1/3"><b>Просмотры поста:</b> средние <b>'+fmtInt(r.avg_v)+'</b> / медианные <b>'+fmtInt(r.medv)+'</b></div>' +
+      '<div><b>Max</b> '+fmtInt(r.max_v)+' / <b>Min</b> '+fmtInt(r.min_v)+'</div>' +
+      '<div><b>ERV</b> '+fmtPct(r.erv)+' / <b>ER</b> '+fmtPct(r.er)+' <small>(сред.)</small></div>' +
+      '<div style="grid-column:1/3"><b>Периодичность публикаций:</b> '+escapeHtml(r.freqRaw||'—')+'</div>' +
+      '<div style="grid-column:1/3">'+subsLine+'</div>' +
+    '</div>';
   $('modal').style.display = 'flex';
 }
 
 // ---------- CSV ----------
 function exportCSV(){
   var f = filtered;
-  var csv = '\uFEFFИмя,Ссылка,Описание,Подписчики тыс,Доля местных %,Местные мед.просмотры,Медиана просмотров,Медиана реакций,Вовлечённость мед %,ERV %,ER %,Постов за 5 мес,Периодичность,Перекос просм,Перекос реакц,Рейтинг,Полнота данных %,Сегменты,Пометки\n';
+  var csv = '\uFEFFИмя,Ссылка,Описание,Примечание\n';
   function q(s){ return '"'+String(s===null||s===undefined?'':s).replace(/"/g,'""')+'"'; }
   function badgesText(r){
     var list = [];
@@ -590,31 +570,20 @@ function exportCSV(){
     if (r.engSusp) list.push('реакций слишком много');
     if (r.inactive) list.push('неактивен');
     if (r.lowLocal) list.push('доля местных <20%');
+    if (r.rare) list.push('редкие публикации');
     return list.join('; ');
   }
   for (var i=0;i<f.length;i++){
     var r = f[i];
-    csv += q(r.name)+','+q(r.link)+','+q(r.desc)+','+
-      (r.subs!==null?r.subs:'')+','+(r.share!==null?r.share:'')+','+(r.localreach!==null?Math.round(r.localreach):'')+','+
-      (r.medv!==null?Math.round(r.medv):'')+','+(r.medr!==null?r.medr:'')+','+(r.eng!==null?r.eng.toFixed(2):'')+','+
-      (r.erv!==null?r.erv.toFixed(2):'')+','+(r.er!==null?r.er.toFixed(2):'')+','+(r.posts!==null?Math.round(r.posts):'')+','+
-      q(r.freqRaw)+','+(r.skewv!==null?r.skewv.toFixed(1):'')+','+(r.skewr!==null?r.skewr.toFixed(1):'')+','+
-      (r.score>0?r.score.toFixed(1):'')+','+r.coverage+','+q(r.segments.map(function(s){return SEG_LABEL[s];}).join('; '))+','+q(badgesText(r))+'\n';
+    csv += q(r.name)+','+q(r.link)+','+q(r.desc)+','+q(badgesText(r))+'\n';
   }
   var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'bloggers_'+currentSegment+'.csv';
+  a.download = 'bloggers.csv';
   a.click();
   URL.revokeObjectURL(url);
-}
-
-// ---------- Строка медиан ----------
-function renderMediansLine(){
-  if (!meds) return;
-  var m = function(v){ return v===null?'—':(Math.round(v*100)/100).toLocaleString('ru-RU'); };
-  $('mediansLine').innerHTML = 'Пороги и сегменты — по медианам трека: местные мед.просмотры <b>'+m(meds.localreach)+'</b> · мед.просмотры <b>'+m(meds.reach)+'</b> · вовлечённость <b>'+m(meds.eng)+'%</b> · доля местных <b>'+m(meds.share)+'%</b> · перекосы <b>'+m(meds.skewv)+'×</b>/<b>'+m(meds.skewr)+'×</b>. Наведите курсор на чипы и пометки для пояснений.';
 }
 
 // ---------- Инициализация ----------
@@ -631,16 +600,26 @@ document.addEventListener('DOMContentLoaded', function(){
     fr.readAsArrayBuffer(f);
   });
   $('segChips').addEventListener('click', function(e){
-    if (!e.target.classList.contains('chip')) return;
-    Array.prototype.forEach.call($('segChips').children, function(c){ c.classList.remove('active'); });
-    e.target.classList.add('active');
-    currentSegment = e.target.getAttribute('data-seg');
+    var t = e.target;
+    if (!t.classList || !t.classList.contains('chip')) return;
+    Array.prototype.forEach.call($('segChips').querySelectorAll('.chip'), function(c){ c.classList.remove('active'); });
+    t.classList.add('active');
+    currentSegment = t.getAttribute('data-seg');
     applyFilters();
   });
-  $('topicInput').addEventListener('input', function(){ topicsFilter = this.value; applyFilters(); });
+  $('btnShowAll').onclick = function(){
+    currentSegment = 'all'; topicsFilter = ''; searchTerm = ''; hideInactive = false;
+    $('descInput').value = ''; $('nameInput').value = ''; $('hideInactive').checked = false;
+    Array.prototype.forEach.call($('segChips').querySelectorAll('.chip'), function(c){ c.classList.remove('active'); });
+    applyFilters();
+  };
+  $('descInput').addEventListener('input', function(){ topicsFilter = this.value; applyFilters(); });
   $('nameInput').addEventListener('input', function(){ searchTerm = this.value; applyFilters(); });
   $('hideInactive').addEventListener('change', function(){ hideInactive = this.checked; applyFilters(); });
   $('btnExport').onclick = exportCSV;
+  $('modalX').onclick = closeModal;
+  $('modal').onclick = function(e){ if (e.target === $('modal')) closeModal(); };
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
 });
 
 </script>
