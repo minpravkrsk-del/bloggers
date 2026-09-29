@@ -115,8 +115,6 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
 <div class="stats">
   <div class="stat"><div class="v" id="statsTotal">—</div><div class="l">Блогеров всего</div></div>
   <div class="stat"><div class="v" id="statsClassified">—</div><div class="l">Классифицированы</div></div>
-  <div class="stat"><div class="v" id="statsViral">—</div><div class="l">Охват от хитов</div></div>
-  <div class="stat"><div class="v" id="statsTopics">—</div><div class="l">Уникальных тем</div></div>
 </div>
 
 <div id="loadError"><div id="loadErrorText"></div><button class="btn" id="btnRetry">Повторить загрузку</button></div>
@@ -129,12 +127,12 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
   <span class="chip chip-seg stars" data-seg="stars" title="Крупнейший местный охват трека — в топ-25% по медианным местным просмотрам">★ Звёзды</span>
   <span class="chip chip-seg beacons" data-seg="beacons" title="Средний местный охват (выше медианы, но не топ-25%), вовлечённость выше медианы">▲ Маяки</span>
   <span class="chip chip-seg flashlights" data-seg="flashlights" title="Скромный местный охват (ниже медианы трека), вовлечённость выше медианы">✦ Фонарики</span>
-  <span class="chip chip-seg projectors" data-seg="projectors" title="Общий охват выше медианы, но доля местных низкая — светит мимо местных">◎ Прожекторы</span>
+  <span class="chip chip-seg projectors" data-seg="projectors" title="Общий охват выше медианы, но местный охват ниже медианы — светит мимо местных; вариант для внешней аудитории">◎ Прожекторы</span>
 </div>
 <div class="chip-desc">
-  <b>★ Звёзды</b> — крупнейший местный охват трека ·
-  <b>▲ Маяки</b> — средний охват, вовлечённость выше медианы ·
-  <b>✦ Фонарики</b> — скромный охват, живая аудитория ·
+  <b>★ Звёзды</b> — самый большой местный охват ·
+  <b>▲ Маяки</b> — крепкая середина ·
+  <b>✦ Фонарики</b> — маленькие, но активные ·
   <b>◎ Прожекторы</b> — большой охват, но мало местных
 </div>
 
@@ -348,10 +346,10 @@ function analyze(rows) {
     r.segments = [];
     if (lr !== null) {
       if (lr > meds.localreachQ75) r.segments.push('stars');
+      else if (r.medv > meds.reach && lr <= meds.localreach) r.segments.push('projectors');
       else if (lr > meds.localreach && eg !== null && eg > meds.eng) r.segments.push('beacons');
       else if (eg !== null && eg > meds.eng) r.segments.push('flashlights');
     }
-    if (r.medv !== null && r.share !== null && r.medv > meds.reach && r.share <= meds.share) r.segments.push('projectors');
     r.viral = r.skewv !== null && r.skewv > 10;
     r.hit = (r.max_v !== null && r.avg_v !== null && r.avg_v > 0 && r.max_v > 20 * r.avg_v);
     r.engSusp = eg !== null && eg > 15;
@@ -460,15 +458,12 @@ function buildTopicList(){
   });
   frags.sort(function(a,b){ return a.localeCompare(b, 'ru'); });
   $('topicList').innerHTML = frags.map(function(t){ return '<option value="'+escapeHtml(t)+'">'; }).join('');
-  $('statsTopics').textContent = frags.length;
 }
 
 function updateStats(){
   var classified = rows.filter(function(r){ return r.segments.length > 0; }).length;
-  var hits = rows.filter(function(r){ return r.viral || r.hit; }).length;
   $('statsTotal').textContent = rows.length;
   $('statsClassified').textContent = classified;
-  $('statsViral').textContent = hits;
 }
 
 // ---------- Пометки ----------
