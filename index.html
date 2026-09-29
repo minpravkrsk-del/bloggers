@@ -101,7 +101,7 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
   <button id="pwdBtn">Войти</button><div id="pwdError"></div>
 </div></div>
 
-<div id="loading"><div class="spinner"></div><div>Загружаю данные с Яндекс Диска…</div></div>
+<div id="loading"><div class="spinner"></div><div>Загружаю данные…</div></div>
 
 <div id="mainScreen">
 <header>
@@ -126,15 +126,15 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
 </div>
 
 <div class="chips-row" id="segChips">
-  <span class="chip chip-seg stars" data-seg="stars" title="Местный охват (медианные местные просмотры) и вовлечённость выше медиан по треку">★ Звёзды</span>
-  <span class="chip chip-seg beacons" data-seg="beacons" title="Местный охват выше медианы, вовлечённость ниже">▲ Маяки</span>
-  <span class="chip chip-seg flashlights" data-seg="flashlights" title="Местный охват ниже медианы, вовлечённость выше">✦ Фонарики</span>
+  <span class="chip chip-seg stars" data-seg="stars" title="Крупнейший местный охват трека — в топ-25% по медианным местным просмотрам">★ Звёзды</span>
+  <span class="chip chip-seg beacons" data-seg="beacons" title="Средний местный охват (выше медианы, но не топ-25%), вовлечённость выше медианы">▲ Маяки</span>
+  <span class="chip chip-seg flashlights" data-seg="flashlights" title="Скромный местный охват (ниже медианы трека), вовлечённость выше медианы">✦ Фонарики</span>
   <span class="chip chip-seg projectors" data-seg="projectors" title="Общий охват выше медианы, но доля местных низкая — светит мимо местных">◎ Прожекторы</span>
 </div>
 <div class="chip-desc">
-  <b>★ Звёзды</b> — местный охват и вовлечённость выше медиан ·
-  <b>▲ Маяки</b> — охват выше, вовлечённость ниже ·
-  <b>✦ Фонарики</b> — охват ниже, вовлечённость выше ·
+  <b>★ Звёзды</b> — крупнейший местный охват трека ·
+  <b>▲ Маяки</b> — средний охват, вовлечённость выше медианы ·
+  <b>✦ Фонарики</b> — скромный охват, живая аудитория ·
   <b>◎ Прожекторы</b> — большой охват, но мало местных
 </div>
 
@@ -196,6 +196,12 @@ function num(v) {
   if (!s) return null;
   var n = parseFloat(s.replace(',', '.'));
   return isFinite(n) ? n : null;
+}
+function quantile(arr, q) {
+  var v = arr.filter(function(x){return x !== null && x !== undefined && isFinite(x);}).sort(function(a,b){return a-b;});
+  if (!v.length) return null;
+  var pos = (v.length-1)*q, base = Math.floor(pos), rest = pos-base;
+  return v[base] + (v[base+1]!==undefined ? rest*(v[base+1]-v[base]) : 0);
 }
 function median(arr) {
   var v = arr.filter(function(x){return x !== null && x !== undefined && isFinite(x);}).sort(function(a,b){return a-b;});
@@ -311,6 +317,7 @@ var WEIGHTS = { localreach: 30, eng: 25, share: 15, reach: 10, stability: 10, ac
 function analyze(rows) {
   var meds = {
     localreach: median(rows.map(function(r){ return (r.medv !== null && r.share !== null) ? r.medv * r.share / 100 : null; })),
+    localreachQ75: quantile(rows.map(function(r){ return (r.medv !== null && r.share !== null) ? r.medv * r.share / 100 : null; }), 0.75),
     eng: median(rows.map(function(r){ return (r.medv !== null && r.medr !== null && r.medv > 0) ? r.medr / r.medv * 100 : null; })),
     reach: median(rows.map(function(r){ return r.medv; })),
     share: median(rows.map(function(r){ return r.share; })),
@@ -339,10 +346,10 @@ function analyze(rows) {
     for (var k in WEIGHTS) if (comps[k] !== null) { score += comps[k] * WEIGHTS[k]; cov += WEIGHTS[k]; }
     r.score = score / 100; r.coverage = cov;
     r.segments = [];
-    if (lr !== null && eg !== null) {
-      if (lr > meds.localreach && eg > meds.eng) r.segments.push('stars');
-      else if (lr > meds.localreach) r.segments.push('beacons');
-      else if (eg > meds.eng) r.segments.push('flashlights');
+    if (lr !== null) {
+      if (lr > meds.localreachQ75) r.segments.push('stars');
+      else if (lr > meds.localreach && eg !== null && eg > meds.eng) r.segments.push('beacons');
+      else if (eg !== null && eg > meds.eng) r.segments.push('flashlights');
     }
     if (r.medv !== null && r.share !== null && r.medv > meds.reach && r.share <= meds.share) r.segments.push('projectors');
     r.viral = r.skewv !== null && r.skewv > 10;
@@ -405,7 +412,7 @@ function loadData(){
     .catch(function(e){
       $('loading').style.display = 'none';
       $('loadError').style.display = 'block';
-      $('loadErrorText').textContent = 'Не удалось получить данные с Диска (' + e.message + '). Загрузите файл вручную или повторите.';
+      $('loadErrorText').textContent = 'Не удалось загрузить данные (' + e.message + '). Загрузите файл вручную или повторите.';
       $('manualUpload').style.display = 'block';
     });
 }
