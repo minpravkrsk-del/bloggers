@@ -535,6 +535,12 @@ function renderTable(){
 // ---------- Карточка ----------
 function closeModal(){ $('modal').style.display = 'none'; }
 
+function localViews(v, r){
+  if (v === null) return '';
+  if (r.share === null) return ' / местные <i>— нет данных о доле местных</i>';
+  return ' / местные ≈<b>'+fmtInt(v*r.share/100)+'</b> <small>(экстраполяция, местных '+r.share+'%)</small>';
+}
+
 function showModal(r){
   var nd = '<i>нет данных</i>';
   var lsubs = r.lsubs, approx = false;
@@ -552,7 +558,8 @@ function showModal(r){
     (r.link?'<p><a href="'+escapeHtml(r.link)+'" target="_blank" rel="noopener">'+escapeHtml(r.link)+'</a></p>':'') +
     (r.desc?'<p class="mdesc">'+escapeHtml(r.desc)+'</p>':'') +
     '<div class="mgrid">' +
-      '<div style="grid-column:1/3"><b>Просмотры поста:</b> средние <b>'+fmtInt(r.avg_v)+'</b> / медианные <b>'+fmtInt(r.medv)+'</b></div>' +
+      '<div style="grid-column:1/3"><b>Просмотры поста, среднее значение:</b> всего <b>'+fmtInt(r.avg_v)+'</b>'+localViews(r.avg_v,r)+'</div>' +
+      '<div style="grid-column:1/3"><b>Просмотры поста, медианное значение:</b> всего <b>'+fmtInt(r.medv)+'</b>'+localViews(r.medv,r)+'</div>' +
       '<div><b>Max</b> '+fmtInt(r.max_v)+' / <b>Min</b> '+fmtInt(r.min_v)+'</div>' +
       '<div><b>ERV</b> '+fmtPct(r.erv)+' / <b>ER</b> '+fmtPct(r.er)+' <small>(сред.)</small></div>' +
       '<div style="grid-column:1/3"><b>Периодичность публикаций:</b> '+escapeHtml(r.freqRaw||'—')+'</div>' +
