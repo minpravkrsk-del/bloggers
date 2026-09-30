@@ -63,6 +63,15 @@ thead th{position:sticky;top:0;background:#0e2a52;color:#fff;padding:10px 12px;t
 td{padding:9px 12px;border-bottom:1px solid #edf1f6;vertical-align:top}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:#f0f6ff}
+.th-chk,.td-chk{width:32px;text-align:center}
+.th-chk input,.td-chk input{cursor:pointer}
+#selBar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:14px;background:#1e2b45;color:#fff;padding:10px 18px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:60;font-size:14px}
+#selBar.show{display:flex}
+#selBar button{border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
+#btnExportX{background:#2f81f7;color:#fff}
+#btnExportX:hover{background:#1f6fe0}
+#btnSelClear{background:transparent;color:#cdd6e4;border:1px solid #45536f}
+#btnSelClear:hover{color:#fff;border-color:#7d8db0}
 .th-idx{width:40px;color:#889}
 .td-name{min-width:170px}
 .td-link{width:36px;text-align:center}
@@ -141,7 +150,6 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
   <input type="text" id="nameInput" placeholder="Имя содержит…">
   <input type="text" id="descInput" list="topicList" placeholder="Описание содержит…">
   <label><input type="checkbox" id="hideInactive"> скрыть неактивных</label>
-  <button id="btnExport">⬇ CSV</button>
   <datalist id="topicList"></datalist>
 </div>
 
@@ -149,11 +157,12 @@ footer{margin-top:18px;color:#889;font-size:12px;text-align:center}
 
 <div class="tablewrap">
 <table>
-  <thead><tr><th>#</th><th>Имя</th><th></th><th>Описание</th><th>Примечание</th></tr></thead>
+  <thead><tr><th class="th-chk"><input type="checkbox" id="chkAll" title="Отметить/снять всех отфильтрованных"></th><th>#</th><th>Имя</th><th></th><th>Описание</th><th>Примечание</th></tr></thead>
   <tbody id="tbody"></tbody>
 </table>
 </div>
 
+<div id="selBar"><span id="selCount"></span><button id="btnExportX">⬇ Скачать Excel</button><button id="btnSelClear">Снять выделение</button></div>
 <div id="modal"><div class="modal-box"><button class="modal-x" id="modalX" title="Закрыть">✕</button><div id="modalBody"></div></div></div>
 
 <footer>Аналитика блогеров ВК · Красноярский край · рейтинг на основе медианных просмотров и вовлечённости</footer>
@@ -516,7 +525,9 @@ function renderTable(){
       var hidden = badges.slice(4).map(function(b){ return b.replace(/<[^>]*>/g, ''); }).join('; ');
       shown += ' <span class="badge b-more" title="'+escapeHtml(hidden)+'">+'+(badges.length-4)+'</span>';
     }
+    var key = rkey(r);
     html += '<tr data-idx="'+i+'" title="Нажмите для деталей">' +
+      '<td class="td-chk"><input type="checkbox" class="rowchk" data-key="'+escapeHtml(key)+'"'+(selection[key]?' checked':'')+' onclick="event.stopPropagation()" title="Добавить в подборку"></td>' +
       '<td class="th-idx">'+(i+1)+'</td>' +
       '<td class="td-name"><b>'+escapeHtml(r.name)+'</b></td>' +
       '<td class="td-link">'+(r.link?'<a href="'+escapeHtml(r.link)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+escapeHtml(r.link)+'">🔗</a>':'—')+'</td>' +
@@ -524,9 +535,11 @@ function renderTable(){
       '<td class="td-badges">'+shown+'</td>' +
       '</tr>';
   }
-  if (!filtered.length) html = '<tr><td colspan="5" class="empty">Ничего не найдено</td></tr>';
+  if (!filtered.length) html = '<tr><td colspan="6" class="empty">Ничего не найдено</td></tr>';
   $('tbody').innerHTML = html;
   $('rowsCount').textContent = filtered.length;
+  updateChkAll();
+  updateSelBar();
   Array.prototype.forEach.call($('tbody').querySelectorAll('tr[data-idx]'), function(tr){
     tr.onclick = function(){ showModal(filtered[+tr.getAttribute('data-idx')]); };
   });
@@ -569,30 +582,81 @@ function showModal(r){
 }
 
 // ---------- CSV ----------
-function exportCSV(){
-  var f = filtered;
-  var csv = '\uFEFFИмя,Ссылка,Описание,Примечание\n';
-  function q(s){ return '"'+String(s===null||s===undefined?'':s).replace(/"/g,'""')+'"'; }
-  function badgesText(r){
-    var list = [];
-    if (r.viral || r.hit) list.push('охват от хитов');
-    if (r.engSusp) list.push('реакций слишком много');
-    if (r.inactive) list.push('неактивен');
-    if (r.lowLocal) list.push('доля местных <20%');
-    if (r.rare) list.push('редкие публикации');
-    return list.join('; ');
+// ---------- Подборка и экспорт ----------
+var selection = {};
+function rkey(r){ return r.link ? linkKey(r.link) : 'n:'+r.name; }
+function loadSelection(){
+  selection = {};
+  try {
+    var arr = JSON.parse(localStorage.getItem('bk_selection')||'[]');
+    for (var i=0;i<arr.length;i++) selection[arr[i]] = true;
+  } catch(e){}
+}
+function saveSelection(){
+  try { localStorage.setItem('bk_selection', JSON.stringify(Object.keys(selection))); } catch(e){}
+}
+function selCountAll(){
+  var n=0;
+  for (var i=0;i<rows.length;i++) if (selection[rkey(rows[i])]) n++;
+  return n;
+}
+function updateChkAll(){
+  var el = $('chkAll');
+  if (!el) return;
+  var n = 0;
+  for (var i=0;i<filtered.length;i++) if (selection[rkey(filtered[i])]) n++;
+  el.checked = filtered.length>0 && n===filtered.length;
+  el.indeterminate = n>0 && n<filtered.length;
+}
+function updateSelBar(){
+  var n = selCountAll();
+  $('selCount').textContent = 'Выбрано: '+n;
+  $('selBar').className = n>0 ? 'show' : '';
+}
+function toggleSel(key, on){
+  if (on) selection[key] = true; else delete selection[key];
+  saveSelection(); updateSelBar(); updateChkAll();
+}
+function clearSel(){
+  selection = {};
+  saveSelection(); renderTable(); updateSelBar();
+}
+function badgesText(r){
+  var list = [];
+  if (r.viral || r.hit) list.push('охват от хитов');
+  if (r.engSusp) list.push('реакций слишком много');
+  if (r.inactive) list.push('неактивен');
+  if (r.lowLocal) list.push('доля местных <20%');
+  if (r.rare) list.push('редкие публикации');
+  return list.join('; ');
+}
+function segText(r){ return (r.segments && r.segments.length) ? SEG_LABEL[r.segments[0]] : '—'; }
+function exportXLSX(){
+  var sel = [];
+  for (var i=0;i<rows.length;i++) if (selection[rkey(rows[i])]) sel.push(rows[i]);
+  if (!sel.length) return;
+  var aoa = [['№','Имя','Ссылка','Описание','Сегмент','Примечание','Рейтинг','Медианные просмотры (всего)','Медианные просмотры местные (≈)','Средние просмотры (всего)','Вовлечённость, %','Доля местных, %','Подписчики, тыс','Подписчики местные, тыс','Периодичность публикаций']];
+  for (var i=0;i<sel.length;i++){
+    var r = sel[i];
+    var ls = (r.lsubs !== null) ? r.lsubs : (r.share !== null && r.subs !== null ? r.subs*r.share/100 : null);
+    aoa.push([
+      i+1, r.name, r.link||'', r.desc||'', segText(r), badgesText(r),
+      r.score !== null ? Math.round(r.score*10)/10 : null,
+      r.medv,
+      (r.medv !== null && r.share !== null) ? Math.round(r.medv*r.share/100) : null,
+      r.avg_v,
+      r.eng !== null ? Math.round(r.eng*100)/100 : null,
+      r.share,
+      r.subs,
+      ls,
+      r.freqRaw || ''
+    ]);
   }
-  for (var i=0;i<f.length;i++){
-    var r = f[i];
-    csv += q(r.name)+','+q(r.link)+','+q(r.desc)+','+q(badgesText(r))+'\n';
-  }
-  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = 'bloggers.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:30},{wch:32},{wch:45},{wch:14},{wch:32},{wch:8},{wch:16},{wch:18},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14},{wch:22}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Подборка');
+  XLSX.writeFile(wb, 'bloggers_selection.xlsx');
 }
 
 // ---------- Инициализация ----------
@@ -625,7 +689,21 @@ document.addEventListener('DOMContentLoaded', function(){
   $('descInput').addEventListener('input', function(){ topicsFilter = this.value; applyFilters(); });
   $('nameInput').addEventListener('input', function(){ searchTerm = this.value; applyFilters(); });
   $('hideInactive').addEventListener('change', function(){ hideInactive = this.checked; applyFilters(); });
-  $('btnExport').onclick = exportCSV;
+  $('btnExportX').onclick = exportXLSX;
+  $('btnSelClear').onclick = clearSel;
+  $('chkAll').onclick = function(){
+    var on = this.checked;
+    for (var i=0;i<filtered.length;i++){
+      var k = rkey(filtered[i]);
+      if (on) selection[k] = true; else delete selection[k];
+    }
+    saveSelection(); renderTable(); updateSelBar();
+  };
+  $('tbody').addEventListener('change', function(e){
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('rowchk')) toggleSel(t.getAttribute('data-key'), t.checked);
+  });
+  loadSelection();
   $('modalX').onclick = closeModal;
   $('modal').onclick = function(e){ if (e.target === $('modal')) closeModal(); };
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
