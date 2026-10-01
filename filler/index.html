@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Заполнитель таблицы — Блогеры ВК</title>
-<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge@2.16.2/dist/browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root { --bg:#f2f3f5; --card:#fff; --accent:#447bba; --ok:#3f9142; --warn:#b7791f; --err:#c0392b; --muted:#818c99; }
@@ -547,8 +547,13 @@ async function stageWall(prog, periodDays, onText) {
 /* ================= ТАБЛИЦА ================= */
 async function loadTable() {
   log('Скачиваю таблицу…');
-  const resp = await fetch(CONFIG.WORKER_URL, { headers: { 'X-Password': CONFIG.WORKER_PASSWORD } });
-  if (!resp.ok) throw new Error('Таблица: Worker вернул ' + resp.status);
+  const ac = new AbortController();
+  const tmr = setTimeout(() => ac.abort(), 30000);
+  let resp;
+  try { resp = await fetch(CONFIG.WORKER_URL, { headers: { 'X-Password': CONFIG.WORKER_PASSWORD }, signal: ac.signal }); }
+  catch (e) { throw new Error('Таблица: не дождался ответа функции за 30 с — попробуйте ещё раз'); }
+  finally { clearTimeout(tmr); }
+  if (!resp.ok) throw new Error('Таблица: функция вернула ' + resp.status);
   const buf = await resp.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   return wb;
@@ -956,32 +961,38 @@ async function init() {
     $('gate-msg').textContent = 'Не удалось получить доступ к ВК API: ' + (e.message || e);
     return;
   }
-  $('gate-msg').textContent = 'Готово. Загружаю таблицу…';
+  // интерфейс открываем сразу, тяжёлые загрузки — фоном
+  state.resolves = {};
+  $('table-status').textContent = 'Загружаю список из таблицы…';
+  $('queue-line').textContent = 'Проверяю очередь…';
+  show('input');
+  backgroundLoad();
+}
+
+async function backgroundLoad() {
   try {
     const st = await bridgeSend('VKWebAppStorageGet', { keys: [CONFIG.STORAGE_KEY_DISK_TOKEN] });
     const kv = (st.keys || []).find(x => x.key === CONFIG.STORAGE_KEY_DISK_TOKEN);
     if (kv && kv.value) state.diskToken = kv.value;
   } catch (e) {}
-  let tableOk = false;
-  try {
-    state.table = await loadTable();
-    state.tableRows = buildRowIndex(state.table.wb);
-    tableOk = true;
-  } catch (e) { log('⚠ Таблица: ' + (e.message || e)); }
-  state.resolves = {};
   if (state.diskToken) {
     try { await diskEnsureFolder(); } catch (e) { log('⚠ ' + e.message); }
     try { state.resolves = await diskGetJson(CONFIG.CACHE_DIR + '/резолвы.json') || {}; } catch (e) {}
     try { await loadQueue(); } catch (e) { log('⚠ Очередь: ' + (e.message || e)); }
-  }
-  show('input');
-  if (!tableOk) $('table-status').textContent = '⚠ Таблица не загрузилась — режим «Из таблицы» недоступен.';
-  if (!state.diskToken) {
+  } else {
     $('queue-line').textContent = 'Очередь недоступна: нет токена Диска. Сохраните его ниже.';
     $('disk-setup').classList.remove('hidden');
     $('disk-setup').classList.add('card');
   }
-  renderPicker();
+  try {
+    state.table = await loadTable();
+    state.tableRows = buildRowIndex(state.table.wb);
+    renderPicker();
+    log('Список из таблицы готов: ' + state.tableRows.length + ' блогеров');
+  } catch (e) {
+    log('⚠ Таблица: ' + (e.message || e));
+    $('table-status').textContent = '⚠ Таблица не загрузилась — режим «Из таблицы» недоступен. Можно повторить из вкладки «Из таблицы».';
+  }
 }
 
 wireUI();
