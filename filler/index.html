@@ -38,8 +38,8 @@
 <body>
 <div class="wrap">
 
-  <!-- ЭКРАН 0: инициализация / доступ -->
-  <div id="screen-gate" class="card hidden">
+  <!-- ЭКРАН 0: инициализация / доступ (видим сразу, чтобы страница не была пустой) -->
+  <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
@@ -91,6 +91,11 @@
     <div class="card">
       <h2 id="res-title">Результат</h2>
       <div id="res-metrics"></div>
+      <div class="muted" id="res-cities"></div>
+    </div>
+    <div class="card">
+      <h2>Журнал</h2>
+      <div id="log-result" style="font-family:ui-monospace,Consolas,monospace;font-size:11.5px;max-height:200px;overflow:auto;background:#1e1e1e;color:#cfd8dc;padding:8px;border-radius:8px;white-space:pre-wrap"></div>
     </div>
     <div class="card">
       <h2>Доля местных</h2>
@@ -131,8 +136,8 @@
 /* ================= НАСТРОЙКИ ================= */
 const CONFIG = {
   APP_ID: 54798571,                                   // Мини-приложение ВК
-  ALLOWED_USER_IDS: [1043833],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
-  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда; X-Password в заголовке
+  ALLOWED_USER_IDS: [],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
+  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда (бывший Cloudflare Worker); X-Password в заголовке
   WORKER_PASSWORD: 'Uip26',
   DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к файлу на вашем Диске (относительно корня); при ошибке записи поправьте здесь
   PERIOD_DAYS_DEFAULT: 153,                           // 5 месяцев
@@ -164,7 +169,13 @@ const state = {
 /* ================= УТИЛИТЫ ================= */
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const log = msg => { const el = $('log'); el.textContent += `[${new Date().toLocaleTimeString('ru-RU')}] ${msg}\n`; el.scrollTop = el.scrollHeight; };
+const log = msg => {
+  const line = `[${new Date().toLocaleTimeString('ru-RU')}] ${msg}\n`;
+  ['log', 'log-result'].forEach(id => {
+    const el = $(id);
+    if (el) { el.textContent += line; el.scrollTop = el.scrollHeight; }
+  });
+};
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim().replace(/\s+/g, ' ');
 const fmtInt = n => (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('ru-RU');
 const fmtPct = n => (n === null || n === undefined || isNaN(n)) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ru-RU') + '%';
@@ -180,9 +191,9 @@ function show(screen) {
 }
 
 /* ================= VK BRIDGE ================= */
-function bridgeSend(event, params) {
+function bridgeSend(event, params, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('Таймаут: ' + event)), 30000);
+    const t = setTimeout(() => reject(new Error('Таймаут: ' + event)), timeoutMs || 15000);
     window.vkBridge.send(event, params || {})
       .then(d => { clearTimeout(t); resolve(d); })
       .catch(e => { clearTimeout(t); reject(e); });
@@ -302,14 +313,21 @@ async function listMembers(groupId, onProg) {
 async function fetchCities(ids) {
   const cities = new Map(); // id -> {id,title}
   const towns = [];         // строки home_town тех, у кого нет city
+  let hiddenCities = 0;
   for (let i = 0; i < ids.length; i += 900) {
     const chunk = ids.slice(i, i + 900);
     const r = await vkApi('users.get', { user_ids: chunk.join(','), fields: 'city,home_town' });
     (r || []).forEach(u => {
       if (u.city) cities.set(u.id, u.city);
       else if (CONFIG.HOME_TOWN_FALLBACK && u.home_town) towns.push(norm(u.home_town));
+      else hiddenCities++;
     });
   }
+  // диагностика: примеры первых городов
+  const samples = [...cities.values()].slice(0, 5).map(c => c.title);
+  log(`Города: получено ${cities.size} из ${ids.length}; «родной город»: ${towns.length}; без города вообще: ${hiddenCities}`);
+  if (samples.length) log(`Примеры городов: ${samples.join(', ')}${cities.size > 5 ? ' …' : ''}`);
+  if (cities.size < 0.05 * ids.length) log('⚠ Города почти не возвращаются — ВК отдаёт их только там, где пользователь их открыл в приватности (или нужен сервисный токен)');
   return { cities, towns };
 }
 
@@ -360,6 +378,15 @@ async function wallStats(ownerId, periodDays, onProg) {
   for (let offset = 0; ; offset += 100) {
     const r = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset, filter: 'owner' });
     const items = (r.items || []);
+    if (offset === 0) {
+      log(`wall.get (filter=owner): в стене ${r.count ?? '?'} записей, получено ${items.length}`);
+      if ((r.count || 0) > 0 && items.length === 0) {
+        log('⚠ ВК сообщил count>0, но отдал пустой список — вероятна приватность стены; пробую без фильтра…');
+        const r2 = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset: 0 });
+        log(`wall.get (без фильтра): в стене ${r2.count ?? '?'} записей, получено ${(r2.items || []).length}`);
+        if ((r2.items || []).length > 0) { r = r2; }
+      }
+    }
     onProg(posts.length);
     for (const p of items) {
       if (p.date < until) break;
@@ -367,6 +394,11 @@ async function wallStats(ownerId, periodDays, onProg) {
     }
     if (!items.length || items[items.length - 1].date < until) break;
     if (offset > 5000) break; // страховка от бесконечной стены
+  }
+  if (!posts.length) {
+    log(`⚠ За последние ${periodDays} дней постов не найдено (если стена не закрыта — возможно, постов и нет). Текущий период: с ${new Date(until * 1000).toLocaleDateString('ru-RU')}`);
+  } else {
+    log(`Постов в периоде: ${posts.length}; свежий: ${new Date(posts[0].date * 1000).toLocaleDateString('ru-RU')}, старейший: ${new Date(posts[posts.length - 1].date * 1000).toLocaleDateString('ru-RU')}`);
   }
   const views = [], soc = [];
   let withViews = 0;
@@ -479,20 +511,30 @@ async function uploadXlsx(wb, safeMode) {
 
 /* ================= ЭКРАНЫ И ПРОВЕРКА ДОСТУПА ================= */
 async function init() {
+  // Быстрая проверка окружения: если мы не внутри ВК (не iframe и нет launch-параметров),
+  // bridge-события никогда не ответят — не ждём таймаутов.
+  const params = new URLSearchParams(location.search);
+  const inVK = window.parent !== window || params.has('vk_user_id') || params.has('vk_app_id');
+  if (!inVK) {
+    show('gate');
+    $('gate-msg').innerHTML =
+      'Страницу нужно открывать внутри ВКонтакте:<br><b>https://vk.ru/app' + CONFIG.APP_ID + '</b><br>' +
+      '<span class="muted">По прямой ссылке мини-приложение не работает — ВК даёт токен только внутри своей оболочки.</span>';
+    return;
+  }
   let uid = null;
   try {
-    await bridgeSend('VKWebAppInit');
-  } catch (e) { /* не внутри ВК */ }
+    await bridgeSend('VKWebAppInit', {}, 8000);
+  } catch (e) { /* не критично */ }
   try {
-    const lp = await bridgeSend('VKWebAppGetLaunchParams');
+    const lp = await bridgeSend('VKWebAppGetLaunchParams', {}, 8000);
     uid = lp.vk_user_id;
   } catch (e) {
-    const m = location.search.match(/vk_user_id=(\d+)/);
-    if (m) uid = +m[1];
+    if (params.has('vk_user_id')) uid = +params.get('vk_user_id');
   }
   if (!uid) {
     show('gate');
-    $('gate-msg').innerHTML = 'Приложение нужно открывать внутри ВКонтакте:<br><b>https://vk.ru/app' + CONFIG.APP_ID + '</b>';
+    $('gate-msg').innerHTML = 'Не удалось получить ваш ID из ВК. Откройте приложение по ссылке <b>https://vk.ru/app' + CONFIG.APP_ID + '</b>';
     return;
   }
   if (CONFIG.ALLOWED_USER_IDS.length && !CONFIG.ALLOWED_USER_IDS.includes(uid)) {
@@ -596,6 +638,7 @@ function showResult() {
     <div class="metric"><span>Соцреакции: среднее / медиана</span><b>${fmtInt(s.avgSoc)} / ${fmtInt(s.medSoc)}</b></div>`;
   $('share-all').textContent = fmtPct(sh.pctAll) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.total)})`;
   $('share-known').textContent = fmtPct(sh.pctKnown) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.withCity + sh.townLocal)})`;
+  $('res-cities').textContent = `Города известны для ${fmtInt(sh.withCity + sh.townLocal)} из ${fmtInt(sh.total)} перебранных подписчиков.`;
 }
 
 async function saveRow() {
