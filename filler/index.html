@@ -131,8 +131,8 @@
 /* ================= НАСТРОЙКИ ================= */
 const CONFIG = {
   APP_ID: 54798571,                                   // Мини-приложение ВК
-  ALLOWED_USER_IDS: [],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
-  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда (бывший Cloudflare Worker); X-Password в заголовке
+  ALLOWED_USER_IDS: [1043833],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
+  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда; X-Password в заголовке
   WORKER_PASSWORD: 'Uip26',
   DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к файлу на вашем Диске (относительно корня); при ошибке записи поправьте здесь
   PERIOD_DAYS_DEFAULT: 153,                           // 5 месяцев
