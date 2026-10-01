@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Заполнитель таблицы — Блогеры ВК</title>
-<script src="https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge@2.16.2/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge@2/dist/browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root { --bg:#f2f3f5; --card:#fff; --accent:#447bba; --ok:#3f9142; --warn:#b7791f; --err:#c0392b; --muted:#818c99; }
@@ -943,6 +943,10 @@ function wireUI() {
 
 async function init() {
   show('gate');
+  if (!window.vkBridge) {
+    $('gate-msg').textContent = 'Не загрузился VK Bridge (CDN). Проверьте интернет и обновите страницу.';
+    return;
+  }
   try {
     const u = await bridgeSend('VKWebAppGetUserInfo');
     state.vkUser = u;
