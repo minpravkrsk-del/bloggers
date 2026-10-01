@@ -20,17 +20,20 @@
   button { border:none; border-radius:10px; padding:11px 16px; font-size:15px; font-weight:600; cursor:pointer; margin:4px 4px 4px 0; }
   .btn-primary { background:var(--accent); color:#fff; }
   .btn-secondary { background:#e6ebf1; color:#333; }
-  .btn-danger { background:#fbe9e7; color:var(--err); }
   .btn[disabled] { opacity:.5; cursor:default; }
+  .tab { background:#dfe4ea; color:#555; border-radius:10px 10px 0 0; }
+  .tab.active { background:var(--accent); color:#fff; }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .metric { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #eef1f4; }
   .metric b { font-weight:600; }
   .pill { display:inline-block; padding:2px 8px; border-radius:10px; background:#e6ebf1; font-size:12px; margin:2px 4px 2px 0; }
-  .pill-ok { background:#e3f2e4; color:var(--ok); }
   .pill-warn { background:#fdf3e0; color:var(--warn); }
-  .pill-err { background:#fdecea; color:var(--err); }
-  #log { font-family:ui-monospace,Consolas,monospace; font-size:11.5px; max-height:180px; overflow:auto; background:#1e1e1e; color:#cfd8dc; padding:8px; border-radius:8px; white-space:pre-wrap; }
-  .radio { display:block; padding:6px 0; }
+  .titem { width:100%; text-align:left; background:#fafbfc; border:1px solid #e7eaee; border-radius:10px; padding:9px 12px; margin:5px 0; font-size:14px; cursor:pointer; }
+  .titem b { font-weight:600; }
+  .titem .miss { color:var(--warn); font-size:12px; }
+  .titem .subs { color:var(--muted); font-size:12.5px; }
+  #table-list { max-height:320px; overflow:auto; }
+  #log, #log-result { font-family:ui-monospace,Consolas,monospace; font-size:11.5px; max-height:180px; overflow:auto; background:#1e1e1e; color:#cfd8dc; padding:8px; border-radius:8px; white-space:pre-wrap; }
   progress { width:100%; height:8px; }
   .hidden { display:none !important; }
 </style>
@@ -38,41 +41,61 @@
 <body>
 <div class="wrap">
 
-  <!-- ЭКРАН 0: инициализация / доступ (видим сразу, чтобы страница не была пустой) -->
+  <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
-  <!-- ЭКРАН 1: ввод ссылки и настройки -->
+  <!-- ЭКРАН 1: выбор блогера и настройки -->
   <div id="screen-input" class="hidden">
     <div class="card">
-      <h2>1. Ссылка на блогера</h2>
-      <input type="text" id="inp-link" placeholder="https://vk.ru/club123 или vk.ru/id456">
-      <div class="muted">Поддерживаются личные страницы и сообщества (в т.ч. короткие адреса).</div>
+      <h2>1. Блогер</h2>
+      <div class="row">
+        <button class="tab active" id="tab-link">По ссылке</button>
+        <button class="tab" id="tab-table">Из таблицы</button>
+      </div>
+      <div id="pane-link">
+        <input type="text" id="inp-link" placeholder="https://vk.ru/club123 или vk.ru/id456">
+        <div class="muted">Поддерживаются личные страницы и сообщества, в т.ч. короткие адреса.</div>
+      </div>
+      <div id="pane-table" class="hidden">
+        <input type="text" id="inp-search" placeholder="Поиск по имени…">
+        <div class="row">
+          <label><input type="radio" name="tf" value="unfilled" checked> Незаполненные (<span id="cnt-unfilled">—</span>)</label>
+          <label><input type="radio" name="tf" value="all"> Все (<span id="cnt-all">—</span>)</label>
+        </div>
+        <div id="table-list"></div>
+        <div class="muted" id="table-status"></div>
+      </div>
     </div>
     <div class="card">
       <h2>2. Что считать «местным»</h2>
       <label class="radio"><input type="radio" name="mode" value="city" checked> Только Красноярск</label>
       <label class="radio"><input type="radio" name="mode" value="region"> Весь Красноярский край</label>
-      <label class="radio"><input type="radio" name="mode" value="custom"> Своё список городов (через запятую)</label>
+      <label class="radio"><input type="radio" name="mode" value="custom"> Свой список городов (через запятую)</label>
       <textarea id="inp-cities" class="hidden" placeholder="Красноярск, Сосновоборск, Дивногорск"></textarea>
-      <div class="muted" id="region-status">Справочник городов края загрузится при первом запуске.</div>
+      <div class="muted" id="region-status">Справочник городов: загрузится при первом прогоне (затем кэш).</div>
     </div>
     <div class="card">
       <h2>3. Период постов</h2>
-      <div class="row">
-        <select id="sel-period">
-          <option value="153" selected>5 месяцев</option>
-          <option value="92">3 месяца</option>
-          <option value="31">1 месяц</option>
-          <option value="365">12 месяцев</option>
-        </select>
-      </div>
-    </div>
-    <div class="card">
+      <select id="sel-period">
+        <option value="153" selected>5 месяцев</option>
+        <option value="92">3 месяца</option>
+        <option value="31">1 месяц</option>
+        <option value="365">12 месяцев</option>
+      </select>
       <button class="btn btn-primary" id="btn-run">Собрать данные</button>
       <span class="muted" id="profile-line"></span>
+    </div>
+    <div class="card">
+      <h2>Очередь обновлений</h2>
+      <div class="muted" id="queue-line">Загрузка…</div>
+      <div class="row">
+        <button class="btn btn-primary" id="btn-merge" disabled>Внести в таблицу</button>
+        <button class="btn btn-secondary" id="btn-queue-dl" disabled>Скачать очередь (xlsx)</button>
+      </div>
+      <div class="muted" id="merge-status"></div>
     </div>
   </div>
 
@@ -92,27 +115,28 @@
       <h2 id="res-title">Результат</h2>
       <div id="res-metrics"></div>
       <div class="muted" id="res-cities"></div>
-    </div>
-    <div class="card">
-      <h2>Журнал</h2>
-      <div id="log-result" style="font-family:ui-monospace,Consolas,monospace;font-size:11.5px;max-height:200px;overflow:auto;background:#1e1e1e;color:#cfd8dc;padding:8px;border-radius:8px;white-space:pre-wrap"></div>
+      <div class="muted" id="res-ts"></div>
     </div>
     <div class="card">
       <h2>Доля местных</h2>
       <div class="metric"><span>От всех подписчиков</span><b id="share-all">—</b></div>
       <div class="metric"><span>Только от тех, у кого известен город</span><b id="share-known">—</b></div>
-      <div class="muted">В таблицу записывается вариант, выбранный ниже (для личных страниц «все» = друзья+подписчики).</div>
+      <div class="muted">В очередь/таблицу записывается выбранный ниже вариант.</div>
       <label class="radio"><input type="radio" name="denom" value="all" checked> От всех подписчиков</label>
       <label class="radio"><input type="radio" name="denom" value="known"> От подписчиков с известным городом</label>
     </div>
     <div class="card">
-      <h2>Запись в таблицу</h2>
-      <label class="radio"><input type="checkbox" id="chk-safe" checked> Бережный режим: сохранить копию файла (не перезаписывать основной)</label>
-      <div class="row" style="margin-top:6px">
-        <button class="btn btn-primary" id="btn-save">Записать строку</button>
-        <button class="btn btn-secondary" id="btn-download">Скачать Excel</button>
+      <h2>Что делать с результатом</h2>
+      <div class="row">
+        <button class="btn btn-primary" id="btn-to-queue">Добавить в очередь</button>
+        <button class="btn btn-secondary" id="btn-direct">Записать сразу в таблицу</button>
       </div>
+      <label class="radio"><input type="checkbox" id="chk-safe" checked> Бережный режим: сохранять копию файла, не перезаписывая основной</label>
       <div class="muted" id="save-status"></div>
+    </div>
+    <div class="card">
+      <h2>Журнал</h2>
+      <div id="log-result"></div>
     </div>
     <div class="card">
       <button class="btn btn-secondary" id="btn-restart">Новый блогер</button>
@@ -123,7 +147,7 @@
   <div id="disk-setup" class="card hidden">
     <h2>OAuth-токен Яндекс Диска</h2>
     <input type="text" id="inp-disk-token" placeholder="y0_AgAA...">
-    <div class="muted">Получите токен один раз на oauth.yandex.ru (приложение с правом «Яндекс Диск REST API»: запись и чтение файлов) и вставьте сюда — он сохранится в хранилище ВК, привязанном к вашему аккаунту и приложению.</div>
+    <div class="muted">Получите один раз на oauth.yandex.ru (право «Яндекс Диск REST API»: запись и чтение). Токен сохранится в хранилище ВК, привязанном к вашему аккаунту и приложению.</div>
     <button class="btn btn-secondary" id="btn-disk-save">Сохранить токен</button>
     <div class="muted" id="disk-status"></div>
   </div>
@@ -135,47 +159,39 @@
 
 /* ================= НАСТРОЙКИ ================= */
 const CONFIG = {
-  APP_ID: 54798571,                                   // Мини-приложение ВК
-  ALLOWED_USER_IDS: [],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
-  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда (бывший Cloudflare Worker); X-Password в заголовке
+  APP_ID: 54798571,
+  ALLOWED_USER_IDS: [1043833],
+  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',
   WORKER_PASSWORD: 'Uip26',
-  DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к файлу на вашем Диске (относительно корня); при ошибке записи поправьте здесь
-  PERIOD_DAYS_DEFAULT: 153,                           // 5 месяцев
-  MAX_SUBSCRIBERS: 10000,                             // лимит перебора подписчиков ВК (offset до 10000); сверх — предупреждает
-  USER_COUNT_MODE: 'followers_plus_friends',          // для личных страниц: 'followers_plus_friends' | 'followers_only'
-  HOME_TOWN_FALLBACK: true,                           // учитывать «родной город» (строку) при отсутствии текущего города
-  REQ_INTERVAL_MS: 400,                               // пауза между запросами к ВК (лимит ~3/сек)
+  DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к основной таблице от корня Диска
+  CACHE_DIR: '_filler_cache',                          // папка кэша и очереди на Диске
+  PERIOD_DAYS_DEFAULT: 153,
+  MAX_SUBSCRIBERS: 10000,                              // лимит перебора ВК (offset до 10000)
+  USER_COUNT_MODE: 'followers_plus_friends',
+  HOME_TOWN_FALLBACK: true,
+  REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth'
 };
 
-/* Колонки листа l1_merged: индекс (1-based) → что заполняем.
-   Формульные колонки (6, 11, 12, 13, 19, 20) НЕ трогаем — они считаются сами. */
-const COL = {
-  NAME: 1, LINK: 2, DESC: 3, SUBS: 4, SHARE: 5,
-  MAX: 7, MIN: 8, AVG_V: 9, AVG_S: 10,
-  POSTS: 15, PERIOD: 16, MED_V: 17, MED_S: 18
-};
+/* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
+   при добавлении НОВОЙ строки формулы прописываем заново по номеру строки. */
+const COL = { NAME:1, LINK:2, DESC:3, SUBS:4, SHARE:5, MAX:7, MIN:8, AVG_V:9, AVG_S:10, POSTS:15, PERIOD:16, MED_V:17, MED_S:18 };
+const MISSING_LABELS = { 4:'подписчики', 5:'доля местных', 7:'max просм.', 8:'min просм.', 9:'ср. просмотры', 10:'ср. соцреакции', 15:'постов', 16:'периодичность', 17:'мед. просмотры', 18:'мед. соцреакции' };
 
 /* ================= СОСТОЯНИЕ ================= */
 const state = {
   token: null, vkUser: null,
-  target: null,        // {type:'user'|'group', ownerId, id, name, desc, subs, friends}
-  wallStats: null,
-  share: null,
-  region: null         // {kraiId, cityIds:Set, cityTitles:Set, krasnoyarskId}
+  region: null,                 // {kraiId, cityIds:Set, cityTitles:Set, krasnoyarskId}
+  table: null,                  // {wb, ws, rows:[{row,id,type,name,subs,missing[]}]}
+  progress: null,               // текущий блогер (объект прогресса)
+  queue: [],                    // [{id,link,name,desc,subs,share,shareDenom,posts,max,min,avgViews,medViews,avgSoc,medSoc,period,ts}]
+  fromTableItem: null           // выбранный из списка
 };
 
 /* ================= УТИЛИТЫ ================= */
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const log = msg => {
-  const line = `[${new Date().toLocaleTimeString('ru-RU')}] ${msg}\n`;
-  ['log', 'log-result'].forEach(id => {
-    const el = $(id);
-    if (el) { el.textContent += line; el.scrollTop = el.scrollHeight; }
-  });
-};
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim().replace(/\s+/g, ' ');
 const fmtInt = n => (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('ru-RU');
 const fmtPct = n => (n === null || n === undefined || isNaN(n)) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ru-RU') + '%';
@@ -185,10 +201,17 @@ function median(arr) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 function show(screen) {
-  ['gate', 'input', 'progress', 'result'].forEach(s => $('screen-' + s).classList.add('hidden'));
+  ['gate','input','progress','result'].forEach(s => $('screen-' + s).classList.add('hidden'));
   $('screen-' + screen).classList.remove('hidden');
-  if (screen !== 'progress') $('disk-setup').classList.add('hidden');
+  if (screen !== 'progress' && screen !== 'result') $('disk-setup').classList.add('hidden');
 }
+const log = msg => {
+  const line = `[${new Date().toLocaleTimeString('ru-RU')}] ${msg}\n`;
+  ['log', 'log-result'].forEach(id => {
+    const el = $(id);
+    if (el) { el.textContent += line; el.scrollTop = el.scrollHeight; }
+  });
+};
 
 /* ================= VK BRIDGE ================= */
 function bridgeSend(event, params, timeoutMs) {
@@ -221,22 +244,76 @@ function vkApi(method, params, attempt = 0) {
   return chain;
 }
 
-/* ================= РАСПОЗНАВАНИЕ ССЫЛКИ ================= */
-async function resolveLink(raw) {
-  let s = String(raw).trim().replace(/^https?:\/\//, '').replace(/^m\./, '');
-  s = s.replace(/^vk\.(com|ru)\//, '');
-  if (!s) throw new Error('Пустая ссылка');
-  s = s.split('?')[0].split('#')[0].replace(/\/+$/, '');
-  let m;
-  if ((m = s.match(/^(?:id)(\d+)$/i))) return await getUser(m[1]);
-  if ((m = s.match(/^(?:club|public|event)(\d+)$/i))) return await getGroup(m[1]);
-  // короткий адрес: пробуем как сообщество, затем как пользователя
-  try {
-    const g = await getGroup(s);
-    return g;
-  } catch (e) {
-    return await getUser(s);
+/* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
+function diskHeaders() { return { Authorization: 'OAuth ' + state.diskToken }; }
+async function diskEnsureFolder() {
+  const r = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent('disk:/' + CONFIG.CACHE_DIR)}`,
+    { method: 'PUT', headers: diskHeaders() });
+  if (r.ok) return true;
+  if (r.status === 409) return true; // уже существует
+  throw new Error('Диск: не создать папку кэша (' + r.status + ')');
+}
+async function diskDownload(path) {
+  const link = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}`,
+    { headers: diskHeaders() });
+  if (link.status === 404) return null;
+  if (!link.ok) throw new Error('Диск: download-link ' + link.status);
+  const { href } = await link.json();
+  const r = await fetch(href);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('Диск: файл ' + path + ' — ' + r.status);
+  return await r.arrayBuffer();
+}
+async function diskUpload(path, data, mime) {
+  const up = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload-link?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
+    { headers: diskHeaders() });
+  if (!up.ok) throw new Error('Диск: upload-link ' + up.status + ' для ' + path);
+  const { href } = await up.json();
+  const put = await fetch(href, { method: 'PUT', body: data });
+  if (!put.ok) throw new Error('Диск: загрузка ' + path + ' — ' + put.status);
+}
+async function diskGetJson(path) {
+  const buf = await diskDownload(path);
+  if (!buf) return null;
+  try { return JSON.parse(new TextDecoder().decode(buf)); }
+  catch (e) { log('⚠ Кэш ' + path + ' повреждён — начинаю заново'); return null; }
+}
+async function diskSetJson(path, obj) {
+  await diskUpload(path, JSON.stringify(obj), 'application/json');
+}
+
+/* ================= РАСПОЗНАВАНИЕ ССЫЛОК (по числовому ID) ================= */
+function parseLinkTarget(s) {
+  const seg = String(s || '').trim().replace(/^https?:\/\//i, '').replace(/^m\./i, '')
+    .replace(/^(vk\.com|vk\.ru)\//i, '').split(/[?#]/)[0].replace(/\/+$/, '');
+  if (/^id\d+$/i.test(seg)) return { type: 'user', id: +seg.slice(2), screen: null };
+  const gm = seg.match(/^(?:club|public|event)(\d+)$/i);
+  if (gm) return { type: 'group', id: +gm[1], screen: null };
+  if (/^\d+$/.test(seg)) return { type: null, id: +seg, screen: null };
+  if (seg) return { type: null, id: null, screen: seg };
+  return null;
+}
+async function resolveTarget(fromLink) {
+  const t = fromLink ? parseLinkTarget(fromLink) : null;
+  if (!t) throw new Error('Не удалось разобрать ссылку');
+  // кэш резолвинга коротких адресов
+  if (t.screen && state.resolves && state.resolves[t.screen]) return state.resolves[t.screen];
+  let target;
+  if (t.type === 'user') target = await getUser(t.id);
+  else if (t.type === 'group') target = await getGroup(t.id);
+  else if (t.id !== null) {
+    // чистый номер — пробуем сообщество, затем пользователя
+    try { target = await getGroup(t.id); }
+    catch (e) { target = await getUser(t.id); }
+  } else {
+    try { target = await getGroup(t.screen); }
+    catch (e1) { target = await getUser(t.screen); }
   }
+  if (t.screen) {
+    state.resolves[t.screen] = target;
+    await saveResolves();
+  }
+  return target;
 }
 async function getUser(idOrName) {
   const r = await vkApi('users.get', { user_ids: idOrName, fields: 'counters,screen_name,about,verified,city' });
@@ -247,114 +324,156 @@ async function getUser(idOrName) {
   const total = CONFIG.USER_COUNT_MODE === 'followers_plus_friends' ? followers + friends : followers;
   return {
     type: 'user', id: u.id, ownerId: u.id,
-    ownerIdFull: 'https://vk.ru/' + (u.screen_name || 'id' + u.id),
+    link: 'https://vk.ru/id' + u.id,
     name: [u.first_name, u.last_name].join(' '),
     desc: 'Личный аккаунт' + (u.about ? ': ' + u.about.slice(0, 300) : ''),
     followers, friends, subs: total
   };
 }
 async function getGroup(idOrName) {
-  const r = await vkApi('groups.getById', { group_id: idOrName, fields: 'members_count,description' });
+  const r = await vkApi('groups.getById', { group_id: idOrName, fields: 'members_count,description,screen_name' });
   const resp = r && (Array.isArray(r) ? r : r.groups || [r]);
   const g = resp && resp[0];
   if (!g) throw new Error('Сообщество не найдено: ' + idOrName);
   return {
     type: 'group', id: g.id, ownerId: -g.id,
-    ownerIdFull: 'https://vk.ru/' + (g.screen_name || 'club' + g.id),
+    link: 'https://vk.ru/club' + g.id,
     name: g.name, desc: (g.description || '').slice(0, 300),
     members: g.members_count || 0, subs: g.members_count || 0
   };
 }
 
-/* ================= СПРАВОЧНИК ГОРОДОВ КРАЯ ================= */
+/* ================= СПРАВОЧНИК ГОРОДОВ КРАЯ (с кэшем) ================= */
 async function buildRegion() {
+  const cached = await diskGetJson(CONFIG.CACHE_DIR + '/города_края.json');
+  if (cached && cached.cityIds && cached.cityIds.length) {
+    log('Справочник городов: из кэша (' + cached.cityIds.length + ' НП)');
+    return { kraiId: cached.kraiId, cityIds: new Set(cached.cityIds), cityTitles: new Set(cached.cityTitles), krasnoyarskId: cached.krasnoyarskId };
+  }
   log('Справочник: получаю регионы России…');
   const regs = await vkApi('database.getRegions', { country_id: 1, count: 200 });
   const krai = (regs.items || regs).find(x => /красноярск/i.test(x.title));
-  if (!krai) throw new Error('Регион «Красноярский край» не найден в справочнике ВК');
+  if (!krai) throw new Error('Регион «Красноярский край» не найден');
   const cityIds = new Set(), cityTitles = new Set();
   let offset = 0;
   while (true) {
     const c = await vkApi('database.getCities', { country_id: 1, region_id: krai.id, need_all: 1, count: 1000, offset });
-    const items = c.items || [];
-    items.forEach(x => { cityIds.add(x.id); cityTitles.add(norm(x.title)); });
-    log(`Справочник: +${items.length} НП (всего ${cityIds.size})`);
-    if (items.length < 1000) break;
+    (c.items || []).forEach(x => { cityIds.add(x.id); cityTitles.add(norm(x.title)); });
+    log(`Справочник: +${(c.items || []).length} НП (всего ${cityIds.size})`);
+    if ((c.items || []).length < 1000) break;
     offset += 1000;
   }
   const kr = await vkApi('database.getCities', { country_id: 1, q: 'Красноярск', count: 10 });
   const krs = (kr.items || []).find(x => norm(x.title) === 'красноярск');
+  await diskSetJson(CONFIG.CACHE_DIR + '/города_края.json',
+    { kraiId: krai.id, krasnoyarskId: krs ? krs.id : null, cityIds: [...cityIds], cityTitles: [...cityTitles] });
   return { kraiId: krai.id, cityIds, cityTitles, krasnoyarskId: krs ? krs.id : null };
 }
 
-/* ================= ПОДПИСЧИКИ И ГОРОДА ================= */
-async function listFollowers(userId, onProg) {
-  const ids = [];
-  for (let offset = 0; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
-    const r = await vkApi('users.getFollowers', { user_id: userId, count: 1000, offset });
-    const items = r.items || [];
-    ids.push(...items);
-    onProg(ids.length);
-    if (items.length < 1000) break;
-  }
-  return ids;
+/* ================= ПРОГРЕСС ПРОГОНА (кэш на Диске) ================= */
+async function loadProgress(target) {
+  const saved = await diskGetJson(`${CONFIG.CACHE_DIR}/p${target.id}.json`);
+  if (saved && saved.id === target.id && saved.link === target.link) return saved;
+  return {
+    id: target.id, type: target.type, link: target.link, name: target.name,
+    subs: target.subs, friends: target.friends || 0,
+    steps: { subs: false, cities: false },
+    ids: [], cities: [], towns: [], chunksDone: 0,
+    updatedAt: Date.now()
+  };
 }
-async function listMembers(groupId, onProg) {
-  const ids = [];
-  for (let offset = 0; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
-    const r = await vkApi('groups.getMembers', { group_id: groupId, count: 1000, offset });
-    const items = r.items || [];
-    ids.push(...items);
-    onProg(ids.length);
-    if (items.length < 1000) break;
-  }
-  return ids;
+async function saveProgress(prog) {
+  prog.updatedAt = Date.now();
+  await diskSetJson(`${CONFIG.CACHE_DIR}/p${prog.id}.json`, prog);
 }
-async function fetchCities(ids) {
-  const cities = new Map(); // id -> {id,title}
-  const towns = [];         // строки home_town тех, у кого нет city
-  let hiddenCities = 0;
-  for (let i = 0; i < ids.length; i += 900) {
-    const chunk = ids.slice(i, i + 900);
+
+/* ================= ЭТАП 1: ПОДПИСЧИКИ ================= */
+async function stageSubs(prog, onText) {
+  if (prog.steps.subs) { log(`Подписчики: из кэша (${fmtInt(prog.ids.length)})`); return; }
+  const target = prog.type === 'group'
+    ? await getGroup(prog.id) : await getUser(prog.id);
+  const ids = prog.ids || [];
+  if (prog.type === 'group') {
+    for (let offset = ids.length; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
+      const r = await vkApi('groups.getMembers', { group_id: prog.id, count: 1000, offset });
+      const items = r.items || [];
+      ids.push(...items);
+      onText(`Собрано ${fmtInt(ids.length)}`);
+      log(`getMembers: +${items.length} (итого ${fmtInt(ids.length)})`);
+      prog.ids = ids; await saveProgress(prog);
+      if (items.length < 1000) break;
+    }
+  } else {
+    for (let offset = ids.length; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
+      const r = await vkApi('users.getFollowers', { user_id: prog.id, count: 1000, offset });
+      const items = r.items || [];
+      ids.push(...items);
+      onText(`Подписчики: ${fmtInt(ids.length)}`);
+      log(`getFollowers: +${items.length} (итого ${fmtInt(ids.length)})`);
+      prog.ids = ids; await saveProgress(prog);
+      if (items.length < 1000) break;
+    }
+    if (CONFIG.USER_COUNT_MODE === 'followers_plus_friends' && target.friends) {
+      if (!ids.includes(prog.id + '_friends')) {
+        const fr = await vkApi('friends.get', { user_id: prog.id, count: 1000 });
+        const seen = new Set(ids);
+        let added = 0;
+        (fr.items || []).forEach(x => { if (!seen.has(x)) { ids.push(x); seen.add(x); added++; } });
+        log(`Друзья: +${added}`);
+        prog.ids = ids; await saveProgress(prog);
+      }
+    }
+  }
+  prog.steps.subs = true;
+  await saveProgress(prog);
+}
+
+/* ================= ЭТАП 2: ГОРОДА ================= */
+async function stageCities(prog, onText) {
+  if (prog.steps.cities) { log(`Города: из кэша (${prog.cities.length} записей)`); return; }
+  const ids = prog.ids;
+  const citiesMap = new Map(prog.cities);
+  const towns = prog.towns || [];
+  const totalChunks = Math.ceil(ids.length / 900);
+  for (let i = prog.chunksDone; i < totalChunks; i++) {
+    const chunk = ids.slice(i * 900, (i + 1) * 900);
     const r = await vkApi('users.get', { user_ids: chunk.join(','), fields: 'city,home_town' });
     (r || []).forEach(u => {
-      if (u.city) cities.set(u.id, u.city);
+      if (u.city) citiesMap.set(u.id, u.city.id);
       else if (CONFIG.HOME_TOWN_FALLBACK && u.home_town) towns.push(norm(u.home_town));
-      else hiddenCities++;
     });
+    prog.cities = [...citiesMap]; prog.towns = towns; prog.chunksDone = i + 1;
+    onText(`Города: пачка ${i + 1}/${totalChunks}`);
+    log(`users.get: пачка ${i + 1}/${totalChunks}, городов известно ${citiesMap.size}`);
+    await saveProgress(prog);
   }
-  // диагностика: примеры первых городов
-  const samples = [...cities.values()].slice(0, 5).map(c => c.title);
-  log(`Города: получено ${cities.size} из ${ids.length}; «родной город»: ${towns.length}; без города вообще: ${hiddenCities}`);
-  if (samples.length) log(`Примеры городов: ${samples.join(', ')}${cities.size > 5 ? ' …' : ''}`);
-  if (cities.size < 0.05 * ids.length) log('⚠ Города почти не возвращаются — ВК отдаёт их только там, где пользователь их открыл в приватности (или нужен сервисный токен)');
-  return { cities, towns };
+  prog.steps.cities = true;
+  await saveProgress(prog);
+  const sample = [...citiesMap.values()].length;
+  if (sample < 0.05 * ids.length) log('⚠ Города почти не возвращаются — ВК отдаёт их только с открытыми в приватности (или нужен сервисный токен)');
 }
 
 /* ================= ДОЛЯ МЕСТНЫХ ================= */
-function computeShare(ids, cities, towns, mode, region) {
-  const custom = mode === 'custom'
-    ? new Set($('inp-cities').value.split(',').map(norm).filter(Boolean))
-    : null;
+function computeShare(prog, mode, region) {
+  const custom = mode === 'custom' ? new Set($('inp-cities').value.split(',').map(norm).filter(Boolean)) : null;
+  const ids = prog.ids, citiesMap = new Map(prog.cities);
+  const titlesById = state.cityTitlesById || new Map();
   let local = 0, withCity = 0;
   ids.forEach(id => {
-    const c = cities.get(id);
-    if (c) {
+    const cid = citiesMap.get(id);
+    if (cid) {
       withCity++;
+      const title = titlesById.get(cid);
       let isLocal = false;
-      if (mode === 'city') isLocal = c.id === region.krasnoyarskId || norm(c.title) === 'красноярск';
-      else if (mode === 'region') isLocal = region.cityIds.has(c.id) || region.cityTitles.has(norm(c.title));
-      else isLocal = custom.has(norm(c.title));
+      if (mode === 'city') isLocal = cid === region.krasnoyarskId;
+      else if (mode === 'region') isLocal = region.cityIds.has(cid) || (title && region.cityTitles.has(norm(title)));
+      else isLocal = title ? custom.has(norm(title)) : false;
       if (isLocal) local++;
-    } else if (CONFIG.HOME_TOWN_FALLBACK && towns.length) {
-      // home_town учитываем только для строк; попадание в местные — по названию
-      // (строки towns уже без привязки к id — оцениваем только по числу, приблизительно)
     }
   });
-  // home_town: приблизительная оценка — считаем долю совпадений среди строк
   let townLocal = 0;
   if (CONFIG.HOME_TOWN_FALLBACK) {
-    towns.forEach(t => {
+    (prog.towns || []).forEach(t => {
       const hit = mode === 'city' ? t === 'красноярск'
         : mode === 'region' ? region.cityTitles.has(t)
         : custom.has(t);
@@ -363,55 +482,51 @@ function computeShare(ids, cities, towns, mode, region) {
   }
   const total = ids.length;
   const localApprox = local + townLocal;
-  const known = withCity + towns.length;
-  return {
-    total, withCity, localExact: local, townLocal, localApprox,
+  const known = withCity + (prog.towns || []).length;
+  return { total, withCity, localApprox,
     pctAll: total ? 100 * localApprox / total : null,
-    pctKnown: known ? 100 * localApprox / known : null
-  };
+    pctKnown: known ? 100 * localApprox / known : null };
 }
 
-/* ================= ПОСТЫ И МЕТРИКИ ================= */
-async function wallStats(ownerId, periodDays, onProg) {
+/* ================= ЭТАП 3: СТЕНА И МЕТРИКИ ================= */
+async function stageWall(prog, periodDays, onText) {
   const until = Date.now() / 1000 - periodDays * 86400;
+  const ownerId = prog.type === 'group' ? -prog.id : prog.id;
   const posts = [];
   for (let offset = 0; ; offset += 100) {
-    const r = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset, filter: 'owner' });
+    let r = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset, filter: 'owner' });
     const items = (r.items || []);
     if (offset === 0) {
-      log(`wall.get (filter=owner): в стене ${r.count ?? '?'} записей, получено ${items.length}`);
+      log(`wall.get (filter=owner): в стене ${(r.count === undefined || r.count === null ? '?' : r.count)} записей, получено ${items.length}`);
       if ((r.count || 0) > 0 && items.length === 0) {
-        log('⚠ ВК сообщил count>0, но отдал пустой список — вероятна приватность стены; пробую без фильтра…');
+        log('⚠ count>0, но список пуст — пробую без фильтра…');
         const r2 = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset: 0 });
-        log(`wall.get (без фильтра): в стене ${r2.count ?? '?'} записей, получено ${(r2.items || []).length}`);
+        log(`wall.get (без фильтра): в стене ${(r2.count === undefined || r2.count === null ? '?' : r2.count)} записей, получено ${(r2.items || []).length}`);
         if ((r2.items || []).length > 0) { r = r2; }
       }
     }
-    onProg(posts.length);
+    onText(`Постов собрано: ${posts.length}`);
     for (const p of items) {
       if (p.date < until) break;
       posts.push(p);
     }
     if (!items.length || items[items.length - 1].date < until) break;
-    if (offset > 5000) break; // страховка от бесконечной стены
+    if (offset > 5000) break;
   }
   if (!posts.length) {
-    log(`⚠ За последние ${periodDays} дней постов не найдено (если стена не закрыта — возможно, постов и нет). Текущий период: с ${new Date(until * 1000).toLocaleDateString('ru-RU')}`);
+    log(`⚠ За последние ${periodDays} дней постов не найдено (проверьте, не закрыта ли стена). Период: с ${new Date(until * 1000).toLocaleDateString('ru-RU')}`);
   } else {
     log(`Постов в периоде: ${posts.length}; свежий: ${new Date(posts[0].date * 1000).toLocaleDateString('ru-RU')}, старейший: ${new Date(posts[posts.length - 1].date * 1000).toLocaleDateString('ru-RU')}`);
   }
   const views = [], soc = [];
-  let withViews = 0;
   posts.forEach(p => {
     const s = (p.likes ? p.likes.count : 0) + (p.reposts ? p.reposts.count : 0) + (p.comments ? p.comments.count : 0);
     soc.push(s);
-    if (p.views && typeof p.views.count === 'number') { views.push(p.views.count); withViews++; }
+    if (p.views && typeof p.views.count === 'number') views.push(p.views.count);
   });
-  const first = posts.length ? posts[posts.length - 1].date : null;
-  const last = posts.length ? posts[0].date : null;
   let periodText = '';
-  if (posts.length >= 2 && first && last) {
-    const spanDays = (last - first) / 86400;
+  if (posts.length >= 2) {
+    const spanDays = (posts[0].date - posts[posts.length - 1].date) / 86400;
     const interval = spanDays / (posts.length - 1);
     if (interval <= 1.2) periodText = 'несколько раз в день';
     else if (interval <= 2.5) periodText = 'почти каждый день';
@@ -419,278 +534,457 @@ async function wallStats(ownerId, periodDays, onProg) {
     else if (interval <= 9.5) periodText = '1 раз в неделю';
     else if (interval <= 18) periodText = '1 раз в 2 недели';
     else periodText = `1 раз в ${Math.max(20, Math.round(interval / 7) * 7)} дней`;
-  } else if (posts.length === 1) {
-    periodText = '1 пост за период';
-  }
-  return {
-    posts: posts.length, withViews,
+  } else if (posts.length === 1) periodText = '1 пост за период';
+  return { posts: posts.length, withViews: views.length,
     max: views.length ? Math.max(...views) : null,
     min: views.length ? Math.min(...views) : null,
     avgViews: views.length ? views.reduce((a, b) => a + b, 0) / views.length : null,
     medViews: median(views),
     avgSoc: soc.length ? soc.reduce((a, b) => a + b, 0) / soc.length : null,
-    medSoc: median(soc),
-    periodText, first, last
-  };
+    medSoc: median(soc), periodText };
 }
 
 /* ================= ТАБЛИЦА ================= */
 async function loadTable() {
-  log('Скачиваю таблицу через Worker…');
+  log('Скачиваю таблицу…');
   const resp = await fetch(CONFIG.WORKER_URL, { headers: { 'X-Password': CONFIG.WORKER_PASSWORD } });
-  if (!resp.ok) throw new Error('Worker вернул ' + resp.status);
+  if (!resp.ok) throw new Error('Таблица: Worker вернул ' + resp.status);
   const buf = await resp.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+  const wb = XLSX.read(buf, { type: 'array' });
   return wb;
 }
-function findRow(ws, link) {
+function buildRowIndex(wb) {
+  const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
   const range = XLSX.utils.decode_range(ws['!ref']);
-  const target = norm(link).replace(/\/+$/, '');
+  const rows = [];
+  for (let r = 2; r <= range.e.r; r++) {
+    const linkCell = ws[XLSX.utils.encode_cell({ r: r - 1, c: COL.LINK - 1 })];
+    const nameCell = ws[XLSX.utils.encode_cell({ r: r - 1, c: COL.NAME - 1 })];
+    const subsCell = ws[XLSX.utils.encode_cell({ r: r - 1, c: COL.SUBS - 1 })];
+    if (!nameCell || !nameCell.v) continue;
+    const t = parseLinkTarget(linkCell ? linkCell.v : '');
+    const missing = [];
+    Object.keys(COL).forEach(k => {
+      if (k === 'NAME' || k === 'LINK' || k === 'DESC') return;
+      const c = ws[XLSX.utils.encode_cell({ r: r - 1, c: COL[k] - 1 })];
+      const v = c ? c.v : undefined;
+      if (v === undefined || v === null || v === '') missing.push(MISSING_LABELS[COL[k]]);
+    });
+    rows.push({ row: r, id: t && t.id, screen: t && t.screen, type: t && t.type,
+      name: nameCell.v, subs: subsCell && typeof subsCell.v === 'number' ? subsCell.v : null, missing });
+  }
+  return rows;
+}
+function findRowById(ws, id) {
+  const range = XLSX.utils.decode_range(ws['!ref']);
   for (let r = 1; r <= range.e.r; r++) {
-    const cell = ws[XLSX.utils.encode_cell({ r, c: COL.LINK - 1 })];
-    if (cell && cell.v && norm(cell.v).replace(/\/+$/, '') === target) return r + 1; // Excel row 1-based
+    const cell = ws[XLSX.utils.encode_cell({ r: r - 1, c: COL.LINK - 1 })];
+    if (!cell || !cell.v) continue;
+    const t = parseLinkTarget(cell.v);
+    if (t && t.id === id) return r;
   }
   return null;
 }
-function fillRow(ws, target, stats, share, shareChosen) {
-  let row = findRow(ws, target.ownerIdFull) || findRow(ws, 'https://vk.ru/' + (target.type === 'group' ? 'club' + target.id : 'id' + target.id));
-  if (!row) {
+function fillRowById(ws, id, data) {
+  let row = findRowById(ws, id);
+  const isNew = !row;
+  if (isNew) {
     const range = XLSX.utils.decode_range(ws['!ref']);
-    row = range.e.r + 1; // новая строка в конец
-    log('Строка не найдена — добавляю новую (строка ' + row + ')');
+    row = range.e.r + 1;
+    // формулы для новой строки
+    const R = row;
+    const setF = (col, f) => { ws[XLSX.utils.encode_cell({ r: R - 1, c: col - 1 })] = { t: 's', v: f }; };
+    setF(6, `=D${R}/100*E${R}`);
+    setF(11, `=I${R}/100*E${R}`);
+    setF(12, `=IF(I${R}="","",J${R}/I${R})`);
+    setF(13, `=IF(OR(D${R}="",D${R}=0),"",J${R}/D${R})`);
+    setF(19, `=IF($Q${R}="","",I${R}/$Q${R})`);
+    setF(20, `=IF($R${R}="","",J${R}/$R${R})`);
+    log('Новая строка ' + R + ' (с формулами)');
   }
   const set = (col, val) => {
     const addr = XLSX.utils.encode_cell({ r: row - 1, c: col - 1 });
+    if (val === null || val === undefined) return;
     ws[addr] = { t: typeof val === 'number' ? 'n' : 's', v: val };
   };
-  set(COL.NAME, target.name);
-  set(COL.LINK, target.ownerIdFull);
-  set(COL.DESC, target.desc || '');
-  set(COL.SUBS, target.subs);
-  const pct = shareChosen === 'known' ? share.pctKnown : share.pctAll;
-  set(COL.SHARE, pct === null ? '' : Math.round(pct * 10) / 10);
-  set(COL.MAX, stats.max); set(COL.MIN, stats.min);
-  set(COL.AVG_V, stats.avgViews ? Math.round(stats.avgViews) : '');
-  set(COL.AVG_S, stats.avgSoc ? Math.round(stats.avgSoc) : '');
-  set(COL.POSTS, stats.posts);
-  set(COL.PERIOD, stats.periodText);
-  set(COL.MED_V, stats.medViews); set(COL.MED_S, stats.medSoc);
+  set(COL.NAME, data.name); set(COL.DESC, data.desc || '');
+  if (isNew) set(COL.LINK, data.link);
+  set(COL.SUBS, data.subs);
+  const pct = data.shareDenom === 'known' ? data.pctKnown : data.pctAll;
+  set(COL.SHARE, pct === null ? null : Math.round(pct * 10) / 10);
+  set(COL.MAX, data.max); set(COL.MIN, data.min);
+  set(COL.AVG_V, data.avgViews ? Math.round(data.avgViews) : null);
+  set(COL.AVG_S, data.avgSoc ? Math.round(data.avgSoc) : null);
+  set(COL.POSTS, data.posts);
+  set(COL.PERIOD, data.period);
+  set(COL.MED_V, data.medViews); set(COL.MED_S, data.medSoc);
   return row;
 }
 
-/* ================= ЗАПИСЬ НА ДИСК ================= */
-async function getDiskToken() {
-  try {
-    const r = await bridgeSend('VKWebAppStorageGet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN });
-    return r.value || '';
-  } catch (e) { return ''; }
+/* ================= ОЧЕРЕДЬ И СЛИЯНИЕ ================= */
+async function loadQueue() {
+  const q = await diskGetJson(CONFIG.CACHE_DIR + '/очередь.json');
+  state.queue = Array.isArray(q) ? q : [];
+  renderQueue();
 }
-async function saveDiskToken(tok) {
-  await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN, value: tok });
+async function addToQueue(rowObj) {
+  state.queue.push(rowObj);
+  await diskSetJson(CONFIG.CACHE_DIR + '/очередь.json', state.queue);
+  renderQueue();
 }
-async function uploadXlsx(wb, safeMode) {
-  const token = await getDiskToken();
-  if (!token) { $('disk-setup').classList.remove('hidden'); throw new Error('Нужен OAuth-токен Диска — вставьте его ниже'); }
-  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  let path = 'disk:/' + CONFIG.DISK_PATH;
-  if (safeMode) {
-    const stamp = new Date().toLocaleDateString('ru-RU').replace(/\./g, '.');
-    path = path.replace(/\.xlsx$/i, ` (обновление ${stamp}).xlsx`);
-  }
-  log('Запрашиваю ссылку загрузки Диска: ' + path);
-  const up = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload-link?path=${encodeURIComponent(path)}&overwrite=true`,
-    { headers: { Authorization: 'OAuth ' + token } });
-  if (!up.ok) throw new Error('Диск: ошибка получения upload-link ' + up.status + ' (проверьте путь файла)');
-  const { href } = await up.json();
-  const put = await fetch(href, { method: 'PUT', body: blob });
-  if (!put.ok) throw new Error('Диск: загрузка не удалась ' + put.status);
-  log('Файл загружен на Диск: ' + path);
-  return path;
+async function clearQueue() { state.queue = []; await diskSetJson(CONFIG.CACHE_DIR + '/очередь.json', []); renderQueue(); }
+function renderQueue() {
+  $('queue-line').textContent = state.queue.length
+    ? `В очереди: ${state.queue.length} строк(а). Последняя: ${state.queue[state.queue.length - 1].name}`
+    : 'Очередь пуста.';
+  $('btn-merge').disabled = !state.queue.length;
+  $('btn-queue-dl').disabled = !state.queue.length;
 }
-
-/* ================= ЭКРАНЫ И ПРОВЕРКА ДОСТУПА ================= */
-async function init() {
-  // Быстрая проверка окружения: если мы не внутри ВК (не iframe и нет launch-параметров),
-  // bridge-события никогда не ответят — не ждём таймаутов.
-  const params = new URLSearchParams(location.search);
-  const inVK = window.parent !== window || params.has('vk_user_id') || params.has('vk_app_id');
-  if (!inVK) {
-    show('gate');
-    $('gate-msg').innerHTML =
-      'Страницу нужно открывать внутри ВКонтакте:<br><b>https://vk.ru/app' + CONFIG.APP_ID + '</b><br>' +
-      '<span class="muted">По прямой ссылке мини-приложение не работает — ВК даёт токен только внутри своей оболочки.</span>';
-    return;
-  }
-  let uid = null;
-  try {
-    await bridgeSend('VKWebAppInit', {}, 8000);
-  } catch (e) { /* не критично */ }
-  try {
-    const lp = await bridgeSend('VKWebAppGetLaunchParams', {}, 8000);
-    uid = lp.vk_user_id;
-  } catch (e) {
-    if (params.has('vk_user_id')) uid = +params.get('vk_user_id');
-  }
-  if (!uid) {
-    show('gate');
-    $('gate-msg').innerHTML = 'Не удалось получить ваш ID из ВК. Откройте приложение по ссылке <b>https://vk.ru/app' + CONFIG.APP_ID + '</b>';
-    return;
-  }
-  if (CONFIG.ALLOWED_USER_IDS.length && !CONFIG.ALLOWED_USER_IDS.includes(uid)) {
-    show('gate');
-    $('gate-msg').innerHTML = '⛔ Доступ только для владельца.';
-    return;
-  }
-  if (!CONFIG.ALLOWED_USER_IDS.length) {
-    // Первый запуск: показываем detected id и просим вписать его в конфиг
-    show('gate');
-    $('gate-msg').innerHTML =
-      `Первый запуск. Ваш ID: <b>${uid}</b><br>` +
-      `Впишите его в CONFIG.ALLOWED_USER_IDS в файле filler/index.html и запушьте репозиторий. ` +
-      `До этого доступ открыт любому, кто откроет ссылку.`;
-    return;
-  }
-  state.vkUser = uid;
-  show('input');
-  try {
-    const t = await bridgeSend('VKWebAppGetAuthToken', { app_id: CONFIG.APP_ID, scope: 'wall,friends' });
-    state.token = t.access_token;
-    $('profile-line').textContent = 'Токен ВК получен ✓';
-  } catch (e) {
-    $('profile-line').innerHTML = '<span style="color:var(--err)">Токен не получен: разрешите доступ</span>';
-  }
-  const dt = await getDiskToken();
-  if (!dt) $('disk-setup').classList.remove('hidden');
-  else $('disk-status').textContent = 'Токен Диска сохранён ✓';
-}
-
-/* ================= ГЛАВНЫЙ СЦЕНАРИЙ ================= */
-async function run() {
-  const raw = $('inp-link').value;
-  if (!raw) { alert('Вставьте ссылку'); return; }
-  if (!state.token) { alert('Сначала разрешите доступ (обновите страницу)'); return; }
-  show('progress'); $('log').textContent = ''; $('prog-bar').value = 0;
-  try {
-    $('prog-title').textContent = 'Распознаю ссылку…';
-    const target = await resolveLink(raw);
-    state.target = target;
-    log(`Цель: ${target.type === 'group' ? 'сообщество' : 'личная страница'} «${target.name}» (id ${target.id}), ${fmtInt(target.subs)} подписчиков${target.type === 'user' && target.friends ? ' (+' + fmtInt(target.friends) + ' друзей)' : ''}`);
-
-    $('prog-title').textContent = 'Справочник городов…';
-    state.region = await buildRegion();
-
-    // подписчики
-    $('prog-title').textContent = 'Собираю подписчиков…';
-    let ids;
-    if (target.type === 'group') ids = await listMembers(target.id, n => $('prog-text').textContent = `Собрано ${fmtInt(n)}`);
-    else {
-      ids = await listFollowers(target.id, n => $('prog-text').textContent = `Подписчики: ${fmtInt(n)}`);
-      log(`Подписчики: ${fmtInt(ids.length)}`);
-      if (CONFIG.USER_COUNT_MODE === 'followers_plus_friends' && target.friends) {
-        const fr = await vkApi('friends.get', { user_id: target.id, count: 1000 });
-        const friendIds = (fr.items || []).slice(0, CONFIG.MAX_SUBSCRIBERS);
-        log(`Друзья: ${fmtInt(friendIds.length)} (объединяю со списком)`);
-        const seen = new Set(ids); friendIds.forEach(x => { if (!seen.has(x)) { ids.push(x); seen.add(x); } });
-      }
-    }
-    if (target.subs > CONFIG.MAX_SUBSCRIBERS) {
-      log(`⚠ У цели ${fmtInt(target.subs)} подписчиков — перебор ограничен ${fmtInt(CONFIG.MAX_SUBSCRIBERS)} (лимит ВК по offset). Доля местных считается по этой выборке.`);
-    }
-
-    // города
-    $('prog-title').textContent = 'Определяю города подписчиков…';
-    const { cities, towns } = await fetchCities(ids);
-    log(`Города известны для ${fmtInt(cities.size)} из ${fmtInt(ids.length)}; строк «родной город»: ${fmtInt(towns.length)}`);
-
-    // доля местных
-    const mode = document.querySelector('input[name=mode]:checked').value;
-    const share = computeShare(ids, cities, towns, mode, state.region);
-    state.share = share;
-
-    // посты
-    $('prog-title').textContent = 'Читаю посты…';
-    const periodDays = +$('sel-period').value;
-    const stats = await wallStats(target.ownerId, periodDays, n => $('prog-text').textContent = `Постов собрано: ${n}`);
-    state.wallStats = stats;
-    log(`Постов за период: ${stats.posts} (с просмотрами: ${stats.withViews})`);
-
-    showResult();
-  } catch (e) {
-    console.error(e);
-    log('❌ ' + (e.message || e));
-    $('prog-title').textContent = 'Ошибка';
-    $('prog-text').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span><br><button class="btn btn-secondary" onclick="show(\'input\')">Назад</button>';
-  }
-}
-
-function showResult() {
-  const t = state.target, s = state.wallStats, sh = state.share;
-  show('result');
-  $('res-title').textContent = `${t.type === 'group' ? 'Сообщество' : 'Личная страница'}: ${t.name}`;
-  $('res-metrics').innerHTML = `
-    <div class="metric"><span>Ссылка</span><b>${t.ownerIdFull}</b></div>
-    <div class="metric"><span>Подписчики всего</span><b>${fmtInt(t.subs)}</b></div>
-    <div class="metric"><span>Постов за период</span><b>${s.posts} (с просмотрами: ${s.withViews})</b></div>
-    <div class="metric"><span>Периодичность</span><b>${s.periodText || '—'}</b></div>
-    <div class="metric"><span>Просмотры: max / min</span><b>${fmtInt(s.max)} / ${fmtInt(s.min)}</b></div>
-    <div class="metric"><span>Просмотры: среднее / медиана</span><b>${fmtInt(s.avgViews)} / ${fmtInt(s.medViews)}</b></div>
-    <div class="metric"><span>Соцреакции: среднее / медиана</span><b>${fmtInt(s.avgSoc)} / ${fmtInt(s.medSoc)}</b></div>`;
-  $('share-all').textContent = fmtPct(sh.pctAll) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.total)})`;
-  $('share-known').textContent = fmtPct(sh.pctKnown) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.withCity + sh.townLocal)})`;
-  $('res-cities').textContent = `Города известны для ${fmtInt(sh.withCity + sh.townLocal)} из ${fmtInt(sh.total)} перебранных подписчиков.`;
-}
-
-async function saveRow() {
-  const btn = $('btn-save'); btn.disabled = true; $('save-status').textContent = '';
+async function mergeQueue() {
+  const btn = $('btn-merge'); btn.disabled = true;
+  $('merge-status').textContent = 'Слияние…';
   try {
     const wb = await loadTable();
     const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
-    const denom = document.querySelector('input[name=denom]:checked').value;
-    const row = fillRow(ws, state.target, state.wallStats, state.share, denom);
-    log(`Строка ${row} обновлена`);
-    const path = await uploadXlsx(wb, $('chk-safe').checked);
-    $('save-status').innerHTML = '<span style="color:var(--ok)">Готово: ' + path + '</span>';
+    let updated = 0, added = 0;
+    for (const q of state.queue) {
+      const existed = findRowById(ws, q.id);
+      const row = fillRowById(ws, q.id, q);
+      if (existed) updated++; else added++;
+      log(`Очередь: ${q.name} → строка ${row} (${existed ? 'обновлена' : 'добавлена'})`);
+    }
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const safe = $('chk-safe').checked;
+    let path = CONFIG.DISK_PATH;
+    if (safe) path = path.replace(/\.xlsx$/i, ` (обновление ${new Date().toLocaleDateString('ru-RU')}).xlsx`);
+    await diskEnsureFolder();
+    await diskUpload(path, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $('merge-status').innerHTML = `<span style="color:var(--ok)">Готово: обновлено ${updated}, добавлено ${added}. Файл: ${path}</span>`;
+    await clearQueue();
   } catch (e) {
-    $('save-status').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span>';
+    $('merge-status').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span>';
     log('❌ ' + (e.message || e));
   }
   btn.disabled = false;
 }
+function queueToXlsx() {
+  const aoa = [['Имя','Ссылка','Описание','Подписчики всего','Доля местных. от %','Max просмотры поста','Min просмотры поста','Среднее количество просмотров поста','Среднее количество соцреакций','Постов за период 5 мес','Периодичность','Медиана просмотров','Медиана соцреакций','Собрано']];
+  state.queue.forEach(q => aoa.push([q.name, q.link, q.desc, q.subs, q.share, q.max, q.min,
+    q.avgViews ? Math.round(q.avgViews) : '', q.avgSoc ? Math.round(q.avgSoc) : '', q.posts, q.period, q.medViews, q.medSoc,
+    new Date(q.ts).toLocaleString('ru-RU')]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Очередь');
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'очередь_филлера.xlsx';
+  a.click();
+}
 
-async function downloadXlsx() {
+/* ================= ГЛАВНЫЙ СЦЕНАРИЙ ================= */
+async function run() {
+  if (!state.token) { alert('Сначала разрешите доступ (обновите страницу)'); return; }
+  show('progress'); $('log').textContent = ''; $('prog-bar').value = 0;
   try {
-    const wb = await loadTable();
-    const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
-    const denom = document.querySelector('input[name=denom]:checked').value;
-    fillRow(ws, state.target, state.wallStats, state.share, denom);
-    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = state.target.name.replace(/[\\/:*?"<>|]/g, '_') + '.xlsx';
-    a.click();
-    $('save-status').textContent = 'Файл скачан (не записан на Диск).';
+    // 1. определить цель
+    let target;
+    if (state.fromTableItem) {
+      const item = state.fromTableItem;
+      target = await resolveTargetByItem(item);
+      state.fromTableItem = null;
+    } else {
+      target = await resolveTarget($('inp-link').value);
+    }
+    log(`Цель: ${target.type === 'group' ? 'сообщество' : 'личная страница'} «${target.name}» (id ${target.id}), ${fmtInt(target.subs)} подписчиков`);
+
+    // 2. прогресс из кэша
+    state.progress = await loadProgress(target);
+    const prog = state.progress;
+
+    // 3. справочник городов
+    $('prog-title').textContent = 'Справочник городов…';
+    state.region = await buildRegion();
+
+    // 4. подписчики
+    $('prog-title').textContent = 'Собираю подписчиков…';
+    await stageSubs(prog, t => $('prog-text').textContent = t);
+    if (target.subs > CONFIG.MAX_SUBSCRIBERS) {
+      log(`⚠ У цели ${fmtInt(target.subs)} подписчиков — перебор ограничен ${fmtInt(CONFIG.MAX_SUBSCRIBERS)} (лимит ВК). Доля считается по этой выборке.`);
+    }
+
+    // 5. города
+    $('prog-title').textContent = 'Определяю города подписчиков…';
+    await stageCities(prog, t => $('prog-text').textContent = t);
+
+    // 6. стена
+    // названия городов по id (для режима «свой список» и отображения)
+    if (!state.cityTitlesById) {
+      state.cityTitlesById = await fetchCityTitles([...new Map(prog.cities).values()]);
+    }
+    $('prog-title').textContent = 'Читаю стену…';
+    const periodDays = +$('sel-period').value;
+    const metrics = await stageWall(prog, periodDays, t => $('prog-text').textContent = t);
+    $('prog-bar').value = 95;
+
+    // 7. доля местных
+    $('prog-title').textContent = 'Считаю долю местных…';
+    const share = computeShare(prog, getShareMode(), state.region);
+    $('prog-bar').value = 100;
+
+    state.result = {
+      id: prog.id, type: prog.type, link: prog.link, name: prog.name,
+      desc: target.desc || '',
+      subs: prog.ids.length, subsReal: target.subs,
+      pctAll: share.pctAll, pctKnown: share.pctKnown, shareDenom: null,
+      withCity: share.withCity, localApprox: share.localApprox,
+      posts: metrics.posts, max: metrics.max, min: metrics.min,
+      avgViews: metrics.avgViews, medViews: metrics.medViews,
+      avgSoc: metrics.avgSoc, medSoc: metrics.medSoc,
+      period: metrics.periodText, periodDays, ts: Date.now()
+    };
+    await saveProgress(prog);
+    showResult();
   } catch (e) {
-    $('save-status').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span>';
+    log('❌ ' + (e.message || (e.error_data && e.error_data.error_msg) || JSON.stringify(e)));
+    $('prog-title').textContent = 'Ошибка';
+    $('prog-text').textContent = 'Подробности в журнале ниже. Прогресс сохранён на Диске — можно продолжить позже с того же места.';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.textContent = '← Вернуться';
+    btn.onclick = () => show('input');
+    $('screen-progress').querySelector('.card').appendChild(btn);
   }
 }
 
-/* ================= ПРИВЯЗКА СОБЫТИЙ ================= */
-document.querySelectorAll('input[name=mode]').forEach(r =>
-  r.addEventListener('change', () => $('inp-cities').classList.toggle('hidden', r.value !== 'custom')));
-$('btn-run').addEventListener('click', run);
-$('btn-save').addEventListener('click', saveRow);
-$('btn-download').addEventListener('click', downloadXlsx);
-$('btn-restart').addEventListener('click', () => show('input'));
-$('btn-disk-save').addEventListener('click', async () => {
-  const tok = $('inp-disk-token').value.trim();
-  if (!tok) return;
-  await saveDiskToken(tok);
-  $('disk-status').textContent = 'Токен Диска сохранён ✓';
-  $('disk-setup').classList.add('hidden');
-});
+/* ================= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ СЦЕНАРИЯ ================= */
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function getShareMode() { return document.querySelector('input[name=mode]:checked').value; }
 
+async function fetchCityTitles(ids) {
+  const map = new Map();
+  const uniq = [...new Set((ids || []).filter(Boolean))];
+  for (let i = 0; i < uniq.length; i += 100) {
+    const chunk = uniq.slice(i, i + 100);
+    try {
+      const r = await vkApi('database.getCitiesById', { city_ids: chunk.join(',') });
+      (r || []).forEach(c => map.set(c.id, norm(c.title)));
+    } catch (e) { log('⚠ getCitiesById: ' + (e.message || e)); }
+  }
+  log('Названия городов получены: ' + map.size);
+  return map;
+}
+
+async function resolveTargetByScreen(screen) {
+  if (state.resolves[screen]) return state.resolves[screen];
+  let t;
+  try { t = await getGroup(screen); }
+  catch (e1) { t = await getUser(screen); }
+  state.resolves[screen] = t;
+  try { await diskSetJson(CONFIG.CACHE_DIR + '/резолвы.json', state.resolves); } catch (e) { log('⚠ резолвы не сохранены'); }
+  return t;
+}
+async function resolveTargetByItem(item) {
+  if (item.id !== null && item.id !== undefined) {
+    if (item.type === 'user') return await getUser(item.id);
+    if (item.type === 'group') return await getGroup(item.id);
+    try { return await getGroup(item.id); } catch (e) { return await getUser(item.id); }
+  }
+  if (item.screen) return await resolveTargetByScreen(item.screen);
+  throw new Error('Не удалось определить ID из ссылки в таблице');
+}
+
+/* ================= ЭКРАН РЕЗУЛЬТАТА ================= */
+function showResult() {
+  const r = state.result;
+  const m = (label, val) => `<div class="metric"><span>${escapeHtml(label)}</span><b>${val}</b></div>`;
+  $('res-title').textContent = r.name;
+  $('res-metrics').innerHTML =
+    m('Подписчиков в выборке', fmtInt(r.subs) + (r.subsReal > r.subs ? ` (из ${fmtInt(r.subsReal)})` : '')) +
+    m('Город известен', `${fmtInt(r.withCity)} из ${fmtInt(r.subs)}`) +
+    m('Местных (оценка)', fmtInt(r.localApprox)) +
+    m('Постов за период', r.posts || 0) +
+    m('Max просмотров', fmtInt(r.max)) +
+    m('Min просмотров', fmtInt(r.min)) +
+    m('Среднее просмотров', r.avgViews ? fmtInt(Math.round(r.avgViews)) : '—') +
+    m('Медиана просмотров', fmtInt(r.medViews)) +
+    m('Среднее соцреакций', r.avgSoc ? fmtInt(Math.round(r.avgSoc)) : '—') +
+    m('Медиана соцреакций', fmtInt(r.medSoc)) +
+    m('Периодичность', escapeHtml(r.period || '—'));
+  $('res-cities').textContent = `Доля местных: от всех — ${fmtPct(r.pctAll)}, от известногородских — ${fmtPct(r.pctKnown)}.`;
+  $('res-ts').textContent = 'Данные собраны: ' + new Date(r.ts).toLocaleString('ru-RU');
+  $('btn-to-queue').disabled = false;
+  $('btn-direct').disabled = false;
+  $('save-status').textContent = '';
+  $('log-result').textContent = $('log').textContent;
+  show('result');
+}
+
+$('btn-to-queue').onclick = async () => {
+  const btn = $('btn-to-queue');
+  try {
+    const r = state.result;
+    r.shareDenom = document.querySelector('input[name=denom]:checked').value;
+    r.share = Math.round((r.shareDenom === 'known' ? r.pctKnown : r.pctAll) * 10) / 10;
+    btn.disabled = true;
+    $('save-status').textContent = 'Сохраняю в очередь…';
+    await addToQueue(r);
+    $('save-status').innerHTML = `<span style="color:var(--ok)">Добавлено в очередь. Теперь строк: ${state.queue.length}.</span>`;
+  } catch (e) {
+    $('save-status').innerHTML = '<span style="color:var(--err)">' + escapeHtml(e.message || String(e)) + '</span>';
+    btn.disabled = false;
+  }
+};
+
+$('btn-direct').onclick = async () => {
+  const btn = $('btn-direct');
+  btn.disabled = true;
+  try {
+    const r = state.result;
+    r.shareDenom = document.querySelector('input[name=denom]:checked').value;
+    r.share = Math.round((r.shareDenom === 'known' ? r.pctKnown : r.pctAll) * 10) / 10;
+    $('save-status').textContent = 'Скачиваю таблицу…';
+    const wb = await loadTable();
+    const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
+    const row = fillRowById(ws, r.id, r);
+    $('save-status').textContent = 'Загружаю файл на Диск…';
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    let path = CONFIG.DISK_PATH;
+    if ($('chk-safe').checked) path = path.replace(/\.xlsx$/i, ` (обновление ${new Date().toLocaleDateString('ru-RU')}).xlsx`);
+    await diskUpload(path, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $('save-status').innerHTML = `<span style="color:var(--ok)">Записано в строку ${row}. Файл: ${escapeHtml(path)}</span>`;
+  } catch (e) {
+    $('save-status').innerHTML = '<span style="color:var(--err)">' + escapeHtml(e.message || String(e)) + '</span>';
+    btn.disabled = false;
+  }
+};
+
+/* ================= СПИСОК «ИЗ ТАБЛИЦЫ» ================= */
+function renderPicker() {
+  if (!state.tableRows) { $('table-status').textContent = 'Таблица не загружена — режим «Из таблицы» недоступен'; return; }
+  const tf = document.querySelector('input[name=tf]:checked').value;
+  const q = norm($('inp-search').value);
+  const rows = state.tableRows;
+  const unfilled = rows.filter(r => r.missing.length);
+  $('cnt-unfilled').textContent = unfilled.length;
+  $('cnt-all').textContent = rows.length;
+  const pool = tf === 'unfilled' ? unfilled : rows;
+  const filtered = q ? pool.filter(r => norm(r.name).includes(q)) : pool;
+  filtered.sort((a, b) => (b.subs || 0) - (a.subs || 0));
+  const shown = filtered.slice(0, 200);
+  const list = $('table-list');
+  list.textContent = '';
+  shown.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'titem';
+    const b = document.createElement('b'); b.textContent = r.name;
+    const subs = document.createElement('div'); subs.className = 'subs';
+    subs.textContent = fmtInt(r.subs) + ' подписчиков' + (r.type === 'group' ? ' · сообщество' : r.type === 'user' ? ' · личная' : '');
+    const miss = document.createElement('div'); miss.className = 'miss';
+    miss.textContent = r.missing.length ? 'Нет: ' + r.missing.join(', ') : 'Данные полные — можно обновить';
+    el.append(b, subs, miss);
+    el.onclick = () => {
+      state.fromTableItem = r;
+      $('profile-line').textContent = `Выбран: ${r.name} (строка ${r.row})`;
+      list.querySelectorAll('.titem').forEach(x => x.style.borderColor = '');
+      el.style.borderColor = 'var(--accent)';
+    };
+    list.appendChild(el);
+  });
+  $('table-status').textContent = filtered.length > 200 ? `Показаны первые 200 из ${filtered.length}. Уточните поиск.` : '';
+}
+
+/* ================= ТОКЕН ДИСКА ================= */
+async function saveDiskToken() {
+  const t = $('inp-disk-token').value.trim();
+  if (!/^y0_/.test(t)) { $('disk-status').textContent = 'Токен Яндекс Диска начинается с y0_'; return; }
+  state.diskToken = t;
+  $('disk-status').textContent = 'Сохраняю…';
+  try {
+    await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN, value: t });
+    $('disk-status').innerHTML = '<span style="color:var(--ok)">Токен сохранён в хранилище ВК.</span>';
+    try { await diskEnsureFolder(); } catch (e) { $('disk-status').innerHTML = '<span style="color:var(--warn)">' + escapeHtml(e.message) + '</span>'; return; }
+    try {
+      await loadQueue(); renderPicker();
+      $('disk-status').innerHTML = '<span style="color:var(--ok)">Токен работает, очередь доступна.</span>';
+    } catch (e) {
+      $('disk-status').innerHTML = '<span style="color:var(--warn)">Токен сохранён, но Диск ответил ошибкой: ' + escapeHtml(e.message || String(e)) + '</span>';
+    }
+  } catch (e) {
+    $('disk-status').textContent = 'Не сохранить токен: ' + (e.message || e);
+  }
+}
+
+/* ================= ПРОВОДКА UI И ЗАПУСК ================= */
+function wireUI() {
+  $('tab-link').onclick = () => {
+    $('tab-link').classList.add('active'); $('tab-table').classList.remove('active');
+    $('pane-link').classList.remove('hidden'); $('pane-table').classList.add('hidden');
+  };
+  $('tab-table').onclick = () => {
+    $('tab-table').classList.add('active'); $('tab-link').classList.remove('active');
+    $('pane-table').classList.remove('hidden'); $('pane-link').classList.add('hidden');
+  };
+  document.querySelectorAll('input[name=tf]').forEach(r => r.onchange = renderPicker);
+  $('inp-search').oninput = renderPicker;
+  $('btn-run').onclick = run;
+  $('btn-merge').onclick = mergeQueue;
+  $('btn-queue-dl').onclick = queueToXlsx;
+  $('btn-disk-save').onclick = saveDiskToken;
+  $('btn-restart').onclick = () => show('input');
+  document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = () => $('inp-cities').classList.toggle('hidden', getShareMode() !== 'custom'));
+}
+
+async function init() {
+  show('gate');
+  try {
+    const u = await bridgeSend('VKWebAppGetUserInfo');
+    state.vkUser = u;
+    if (!CONFIG.ALLOWED_USER_IDS.includes(u.id)) {
+      $('gate-msg').textContent = 'Приложение доступно только его владельцу.';
+      return;
+    }
+  } catch (e) {
+    $('gate-msg').textContent = 'Открывайте приложение внутри ВКонтакте.';
+    return;
+  }
+  try {
+    const a = await bridgeSend('VKWebAppGetAuthToken', { app_id: CONFIG.APP_ID, scope: 'wall,friends' }, 60000);
+    state.token = a.access_token;
+  } catch (e) {
+    $('gate-msg').textContent = 'Не удалось получить доступ к ВК API: ' + (e.message || e);
+    return;
+  }
+  $('gate-msg').textContent = 'Готово. Загружаю таблицу…';
+  try {
+    const st = await bridgeSend('VKWebAppStorageGet', { keys: [CONFIG.STORAGE_KEY_DISK_TOKEN] });
+    const kv = (st.keys || []).find(x => x.key === CONFIG.STORAGE_KEY_DISK_TOKEN);
+    if (kv && kv.value) state.diskToken = kv.value;
+  } catch (e) {}
+  let tableOk = false;
+  try {
+    state.table = await loadTable();
+    state.tableRows = buildRowIndex(state.table.wb);
+    tableOk = true;
+  } catch (e) { log('⚠ Таблица: ' + (e.message || e)); }
+  state.resolves = {};
+  if (state.diskToken) {
+    try { await diskEnsureFolder(); } catch (e) { log('⚠ ' + e.message); }
+    try { state.resolves = await diskGetJson(CONFIG.CACHE_DIR + '/резолвы.json') || {}; } catch (e) {}
+    try { await loadQueue(); } catch (e) { log('⚠ Очередь: ' + (e.message || e)); }
+  }
+  show('input');
+  if (!tableOk) $('table-status').textContent = '⚠ Таблица не загрузилась — режим «Из таблицы» недоступен.';
+  if (!state.diskToken) {
+    $('queue-line').textContent = 'Очередь недоступна: нет токена Диска. Сохраните его ниже.';
+    $('disk-setup').classList.remove('hidden');
+    $('disk-setup').classList.add('card');
+  }
+  renderPicker();
+}
+
+wireUI();
 init();
 </script>
 </body>
