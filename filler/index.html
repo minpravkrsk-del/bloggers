@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<!--
+  Заполнитель таблицы «Блоггеры ВК Красноярск» — VK Mini App.
+  Хостинг: GitHub Pages (в папке filler/ репозитория bloggers).
+  Адрес в настройках приложения (вкладка «Размещение»): https://minpravkrsk-del.github.io/bloggers/filler/index.html
+  Ссылка приложения: https://vk.ru/app54798571
+
+  Порядок работы:
+  1. Приложение проверяет ваш user_id (замок приватности).
+  2. Запрашивает токен ВК с правами wall,friends (один клик «Разрешить»).
+  3. Вы вставляете ссылку на блогера (личная страница или сообщество).
+  4. Скрипт собирает: подписчиков/друзей, их города, посты за 5 месяцев.
+  5. Считает метрики и долю местных; пишет строку в xlsx на Яндекс Диске.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Заполнитель таблицы — Блогеры ВК</title>
+<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root { --bg:#f2f3f5; --card:#fff; --accent:#447bba; --ok:#3f9142; --warn:#b7791f; --err:#c0392b; --muted:#818c99; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:#222; font-size:15px; }
+  .wrap { max-width:640px; margin:0 auto; padding:12px; }
+  .card { background:var(--card); border-radius:12px; padding:14px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  h1 { font-size:18px; margin:4px 0 10px; }
+  h2 { font-size:15px; margin:0 0 8px; color:#333; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  input[type=text], textarea { width:100%; padding:10px; border:1px solid #dce1e6; border-radius:10px; font-size:15px; margin:4px 0; }
+  textarea { height:80px; resize:vertical; }
+  button { border:none; border-radius:10px; padding:11px 16px; font-size:15px; font-weight:600; cursor:pointer; margin:4px 4px 4px 0; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-secondary { background:#e6ebf1; color:#333; }
+  .btn-danger { background:#fbe9e7; color:var(--err); }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .metric { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #eef1f4; }
+  .metric b { font-weight:600; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; background:#e6ebf1; font-size:12px; margin:2px 4px 2px 0; }
+  .pill-ok { background:#e3f2e4; color:var(--ok); }
+  .pill-warn { background:#fdf3e0; color:var(--warn); }
+  .pill-err { background:#fdecea; color:var(--err); }
+  #log { font-family:ui-monospace,Consolas,monospace; font-size:11.5px; max-height:180px; overflow:auto; background:#1e1e1e; color:#cfd8dc; padding:8px; border-radius:8px; white-space:pre-wrap; }
+  .radio { display:block; padding:6px 0; }
+  progress { width:100%; height:8px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ЭКРАН 0: инициализация / доступ -->
+  <div id="screen-gate" class="card hidden">
+    <h1>🔒 Заполнитель таблицы</h1>
+    <div id="gate-msg" class="muted">Проверка доступа…</div>
+  </div>
+
+  <!-- ЭКРАН 1: ввод ссылки и настройки -->
+  <div id="screen-input" class="hidden">
+    <div class="card">
+      <h2>1. Ссылка на блогера</h2>
+      <input type="text" id="inp-link" placeholder="https://vk.ru/club123 или vk.ru/id456">
+      <div class="muted">Поддерживаются личные страницы и сообщества (в т.ч. короткие адреса).</div>
+    </div>
+    <div class="card">
+      <h2>2. Что считать «местным»</h2>
+      <label class="radio"><input type="radio" name="mode" value="city" checked> Только Красноярск</label>
+      <label class="radio"><input type="radio" name="mode" value="region"> Весь Красноярский край</label>
+      <label class="radio"><input type="radio" name="mode" value="custom"> Своё список городов (через запятую)</label>
+      <textarea id="inp-cities" class="hidden" placeholder="Красноярск, Сосновоборск, Дивногорск"></textarea>
+      <div class="muted" id="region-status">Справочник городов края загрузится при первом запуске.</div>
+    </div>
+    <div class="card">
+      <h2>3. Период постов</h2>
+      <div class="row">
+        <select id="sel-period">
+          <option value="153" selected>5 месяцев</option>
+          <option value="92">3 месяца</option>
+          <option value="31">1 месяц</option>
+          <option value="365">12 месяцев</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <button class="btn btn-primary" id="btn-run">Собрать данные</button>
+      <span class="muted" id="profile-line"></span>
+    </div>
+  </div>
+
+  <!-- ЭКРАН 2: прогресс -->
+  <div id="screen-progress" class="hidden">
+    <div class="card">
+      <h2 id="prog-title">Сбор данных…</h2>
+      <progress id="prog-bar" max="100" value="0"></progress>
+      <div class="muted" id="prog-text"></div>
+      <div id="log" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- ЭКРАН 3: результат -->
+  <div id="screen-result" class="hidden">
+    <div class="card">
+      <h2 id="res-title">Результат</h2>
+      <div id="res-metrics"></div>
+    </div>
+    <div class="card">
+      <h2>Доля местных</h2>
+      <div class="metric"><span>От всех подписчиков</span><b id="share-all">—</b></div>
+      <div class="metric"><span>Только от тех, у кого известен город</span><b id="share-known">—</b></div>
+      <div class="muted">В таблицу записывается вариант, выбранный ниже (для личных страниц «все» = друзья+подписчики).</div>
+      <label class="radio"><input type="radio" name="denom" value="all" checked> От всех подписчиков</label>
+      <label class="radio"><input type="radio" name="denom" value="known"> От подписчиков с известным городом</label>
+    </div>
+    <div class="card">
+      <h2>Запись в таблицу</h2>
+      <label class="radio"><input type="checkbox" id="chk-safe" checked> Бережный режим: сохранить копию файла (не перезаписывать основной)</label>
+      <div class="row" style="margin-top:6px">
+        <button class="btn btn-primary" id="btn-save">Записать строку</button>
+        <button class="btn btn-secondary" id="btn-download">Скачать Excel</button>
+      </div>
+      <div class="muted" id="save-status"></div>
+    </div>
+    <div class="card">
+      <button class="btn btn-secondary" id="btn-restart">Новый блогер</button>
+    </div>
+  </div>
+
+  <!-- Настройки токена Диска -->
+  <div id="disk-setup" class="card hidden">
+    <h2>OAuth-токен Яндекс Диска</h2>
+    <input type="text" id="inp-disk-token" placeholder="y0_AgAA...">
+    <div class="muted">Получите токен один раз на oauth.yandex.ru (приложение с правом «Яндекс Диск REST API»: запись и чтение файлов) и вставьте сюда — он сохранится в хранилище ВК, привязанном к вашему аккаунту и приложению.</div>
+    <button class="btn btn-secondary" id="btn-disk-save">Сохранить токен</button>
+    <div class="muted" id="disk-status"></div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+/* ================= НАСТРОЙКИ ================= */
+const CONFIG = {
+  APP_ID: 54798571,                                   // Мини-приложение ВК
+  ALLOWED_USER_IDS: [],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
+  WORKER_URL: 'https://bloggers-data.minpravkrsk.workers.dev/',
+  WORKER_PASSWORD: 'Uip26',
+  DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к файлу на вашем Диске (относительно корня); при ошибке записи поправьте здесь
+  PERIOD_DAYS_DEFAULT: 153,                           // 5 месяцев
+  MAX_SUBSCRIBERS: 10000,                             // лимит перебора подписчиков ВК (offset до 10000); сверх — предупреждает
+  USER_COUNT_MODE: 'followers_plus_friends',          // для личных страниц: 'followers_plus_friends' | 'followers_only'
+  HOME_TOWN_FALLBACK: true,                           // учитывать «родной город» (строку) при отсутствии текущего города
+  REQ_INTERVAL_MS: 400,                               // пауза между запросами к ВК (лимит ~3/сек)
+  SHEET: 'l1_merged',
+  STORAGE_KEY_DISK_TOKEN: 'disk_oauth'
+};
+
+/* Колонки листа l1_merged: индекс (1-based) → что заполняем.
+   Формульные колонки (6, 11, 12, 13, 19, 20) НЕ трогаем — они считаются сами. */
+const COL = {
+  NAME: 1, LINK: 2, DESC: 3, SUBS: 4, SHARE: 5,
+  MAX: 7, MIN: 8, AVG_V: 9, AVG_S: 10,
+  POSTS: 15, PERIOD: 16, MED_V: 17, MED_S: 18
+};
+
+/* ================= СОСТОЯНИЕ ================= */
+const state = {
+  token: null, vkUser: null,
+  target: null,        // {type:'user'|'group', ownerId, id, name, desc, subs, friends}
+  wallStats: null,
+  share: null,
+  region: null         // {kraiId, cityIds:Set, cityTitles:Set, krasnoyarskId}
+};
+
+/* ================= УТИЛИТЫ ================= */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const log = msg => { const el = $('log'); el.textContent += `[${new Date().toLocaleTimeString('ru-RU')}] ${msg}\n`; el.scrollTop = el.scrollHeight; };
+const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim().replace(/\s+/g, ' ');
+const fmtInt = n => (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('ru-RU');
+const fmtPct = n => (n === null || n === undefined || isNaN(n)) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ru-RU') + '%';
+function median(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b), m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function show(screen) {
+  ['gate', 'input', 'progress', 'result'].forEach(s => $('screen-' + s).classList.add('hidden'));
+  $('screen-' + screen).classList.remove('hidden');
+  if (screen !== 'progress') $('disk-setup').classList.add('hidden');
+}
+
+/* ================= VK BRIDGE ================= */
+function bridgeSend(event, params) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('Таймаут: ' + event)), 30000);
+    window.vkBridge.send(event, params || {})
+      .then(d => { clearTimeout(t); resolve(d); })
+      .catch(e => { clearTimeout(t); reject(e); });
+  });
+}
+let chain = Promise.resolve();
+function vkApi(method, params, attempt = 0) {
+  chain = chain.then(async () => {
+    await sleep(CONFIG.REQ_INTERVAL_MS);
+    const p = Object.assign({ v: '5.199', access_token: state.token }, params);
+    try {
+      const r = await bridgeSend('VKWebAppCallAPIMethod', { method, params: p, request_id: 'r' + Date.now() + Math.random() });
+      return r.response;
+    } catch (e) {
+      const code = e && (e.error_data ? e.error_data.error_code : e.error_code);
+      if ((code === 6 || code === 9 || code === 10) && attempt < 4) {
+        const wait = 1500 * Math.pow(2, attempt);
+        log(`⚠ ${method}: код ${code}, пауза ${wait / 1000}с и повтор`);
+        await sleep(wait);
+        return vkApi(method, params, attempt + 1);
+      }
+      throw e;
+    }
+  });
+  return chain;
+}
+
+/* ================= РАСПОЗНАВАНИЕ ССЫЛКИ ================= */
+async function resolveLink(raw) {
+  let s = String(raw).trim().replace(/^https?:\/\//, '').replace(/^m\./, '');
+  s = s.replace(/^vk\.(com|ru)\//, '');
+  if (!s) throw new Error('Пустая ссылка');
+  s = s.split('?')[0].split('#')[0].replace(/\/+$/, '');
+  let m;
+  if ((m = s.match(/^(?:id)(\d+)$/i))) return await getUser(m[1]);
+  if ((m = s.match(/^(?:club|public|event)(\d+)$/i))) return await getGroup(m[1]);
+  // короткий адрес: пробуем как сообщество, затем как пользователя
+  try {
+    const g = await getGroup(s);
+    return g;
+  } catch (e) {
+    return await getUser(s);
+  }
+}
+async function getUser(idOrName) {
+  const r = await vkApi('users.get', { user_ids: idOrName, fields: 'counters,screen_name,about,verified,city' });
+  const u = r && r[0];
+  if (!u) throw new Error('Личная страница не найдена: ' + idOrName);
+  const friends = (u.counters && u.counters.friends) || 0;
+  const followers = (u.counters && u.counters.followers) || 0;
+  const total = CONFIG.USER_COUNT_MODE === 'followers_plus_friends' ? followers + friends : followers;
+  return {
+    type: 'user', id: u.id, ownerId: u.id,
+    ownerIdFull: 'https://vk.ru/' + (u.screen_name || 'id' + u.id),
+    name: [u.first_name, u.last_name].join(' '),
+    desc: 'Личный аккаунт' + (u.about ? ': ' + u.about.slice(0, 300) : ''),
+    followers, friends, subs: total
+  };
+}
+async function getGroup(idOrName) {
+  const r = await vkApi('groups.getById', { group_id: idOrName, fields: 'members_count,description' });
+  const resp = r && (Array.isArray(r) ? r : r.groups || [r]);
+  const g = resp && resp[0];
+  if (!g) throw new Error('Сообщество не найдено: ' + idOrName);
+  return {
+    type: 'group', id: g.id, ownerId: -g.id,
+    ownerIdFull: 'https://vk.ru/' + (g.screen_name || 'club' + g.id),
+    name: g.name, desc: (g.description || '').slice(0, 300),
+    members: g.members_count || 0, subs: g.members_count || 0
+  };
+}
+
+/* ================= СПРАВОЧНИК ГОРОДОВ КРАЯ ================= */
+async function buildRegion() {
+  log('Справочник: получаю регионы России…');
+  const regs = await vkApi('database.getRegions', { country_id: 1, count: 200 });
+  const krai = (regs.items || regs).find(x => /красноярск/i.test(x.title));
+  if (!krai) throw new Error('Регион «Красноярский край» не найден в справочнике ВК');
+  const cityIds = new Set(), cityTitles = new Set();
+  let offset = 0;
+  while (true) {
+    const c = await vkApi('database.getCities', { country_id: 1, region_id: krai.id, need_all: 1, count: 1000, offset });
+    const items = c.items || [];
+    items.forEach(x => { cityIds.add(x.id); cityTitles.add(norm(x.title)); });
+    log(`Справочник: +${items.length} НП (всего ${cityIds.size})`);
+    if (items.length < 1000) break;
+    offset += 1000;
+  }
+  const kr = await vkApi('database.getCities', { country_id: 1, q: 'Красноярск', count: 10 });
+  const krs = (kr.items || []).find(x => norm(x.title) === 'красноярск');
+  return { kraiId: krai.id, cityIds, cityTitles, krasnoyarskId: krs ? krs.id : null };
+}
+
+/* ================= ПОДПИСЧИКИ И ГОРОДА ================= */
+async function listFollowers(userId, onProg) {
+  const ids = [];
+  for (let offset = 0; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
+    const r = await vkApi('users.getFollowers', { user_id: userId, count: 1000, offset });
+    const items = r.items || [];
+    ids.push(...items);
+    onProg(ids.length);
+    if (items.length < 1000) break;
+  }
+  return ids;
+}
+async function listMembers(groupId, onProg) {
+  const ids = [];
+  for (let offset = 0; offset < CONFIG.MAX_SUBSCRIBERS; offset += 1000) {
+    const r = await vkApi('groups.getMembers', { group_id: groupId, count: 1000, offset });
+    const items = r.items || [];
+    ids.push(...items);
+    onProg(ids.length);
+    if (items.length < 1000) break;
+  }
+  return ids;
+}
+async function fetchCities(ids) {
+  const cities = new Map(); // id -> {id,title}
+  const towns = [];         // строки home_town тех, у кого нет city
+  for (let i = 0; i < ids.length; i += 900) {
+    const chunk = ids.slice(i, i + 900);
+    const r = await vkApi('users.get', { user_ids: chunk.join(','), fields: 'city,home_town' });
+    (r || []).forEach(u => {
+      if (u.city) cities.set(u.id, u.city);
+      else if (CONFIG.HOME_TOWN_FALLBACK && u.home_town) towns.push(norm(u.home_town));
+    });
+  }
+  return { cities, towns };
+}
+
+/* ================= ДОЛЯ МЕСТНЫХ ================= */
+function computeShare(ids, cities, towns, mode, region) {
+  const custom = mode === 'custom'
+    ? new Set($('inp-cities').value.split(',').map(norm).filter(Boolean))
+    : null;
+  let local = 0, withCity = 0;
+  ids.forEach(id => {
+    const c = cities.get(id);
+    if (c) {
+      withCity++;
+      let isLocal = false;
+      if (mode === 'city') isLocal = c.id === region.krasnoyarskId || norm(c.title) === 'красноярск';
+      else if (mode === 'region') isLocal = region.cityIds.has(c.id) || region.cityTitles.has(norm(c.title));
+      else isLocal = custom.has(norm(c.title));
+      if (isLocal) local++;
+    } else if (CONFIG.HOME_TOWN_FALLBACK && towns.length) {
+      // home_town учитываем только для строк; попадание в местные — по названию
+      // (строки towns уже без привязки к id — оцениваем только по числу, приблизительно)
+    }
+  });
+  // home_town: приблизительная оценка — считаем долю совпадений среди строк
+  let townLocal = 0;
+  if (CONFIG.HOME_TOWN_FALLBACK) {
+    towns.forEach(t => {
+      const hit = mode === 'city' ? t === 'красноярск'
+        : mode === 'region' ? region.cityTitles.has(t)
+        : custom.has(t);
+      if (hit) townLocal++;
+    });
+  }
+  const total = ids.length;
+  const localApprox = local + townLocal;
+  const known = withCity + towns.length;
+  return {
+    total, withCity, localExact: local, townLocal, localApprox,
+    pctAll: total ? 100 * localApprox / total : null,
+    pctKnown: known ? 100 * localApprox / known : null
+  };
+}
+
+/* ================= ПОСТЫ И МЕТРИКИ ================= */
+async function wallStats(ownerId, periodDays, onProg) {
+  const until = Date.now() / 1000 - periodDays * 86400;
+  const posts = [];
+  for (let offset = 0; ; offset += 100) {
+    const r = await vkApi('wall.get', { owner_id: ownerId, count: 100, offset, filter: 'owner' });
+    const items = (r.items || []);
+    onProg(posts.length);
+    for (const p of items) {
+      if (p.date < until) break;
+      posts.push(p);
+    }
+    if (!items.length || items[items.length - 1].date < until) break;
+    if (offset > 5000) break; // страховка от бесконечной стены
+  }
+  const views = [], soc = [];
+  let withViews = 0;
+  posts.forEach(p => {
+    const s = (p.likes ? p.likes.count : 0) + (p.reposts ? p.reposts.count : 0) + (p.comments ? p.comments.count : 0);
+    soc.push(s);
+    if (p.views && typeof p.views.count === 'number') { views.push(p.views.count); withViews++; }
+  });
+  const first = posts.length ? posts[posts.length - 1].date : null;
+  const last = posts.length ? posts[0].date : null;
+  let periodText = '';
+  if (posts.length >= 2 && first && last) {
+    const spanDays = (last - first) / 86400;
+    const interval = spanDays / (posts.length - 1);
+    if (interval <= 1.2) periodText = 'несколько раз в день';
+    else if (interval <= 2.5) periodText = 'почти каждый день';
+    else if (interval <= 5) periodText = 'несколько раз в неделю';
+    else if (interval <= 9.5) periodText = '1 раз в неделю';
+    else if (interval <= 18) periodText = '1 раз в 2 недели';
+    else periodText = `1 раз в ${Math.max(20, Math.round(interval / 7) * 7)} дней`;
+  } else if (posts.length === 1) {
+    periodText = '1 пост за период';
+  }
+  return {
+    posts: posts.length, withViews,
+    max: views.length ? Math.max(...views) : null,
+    min: views.length ? Math.min(...views) : null,
+    avgViews: views.length ? views.reduce((a, b) => a + b, 0) / views.length : null,
+    medViews: median(views),
+    avgSoc: soc.length ? soc.reduce((a, b) => a + b, 0) / soc.length : null,
+    medSoc: median(soc),
+    periodText, first, last
+  };
+}
+
+/* ================= ТАБЛИЦА ================= */
+async function loadTable() {
+  log('Скачиваю таблицу через Worker…');
+  const resp = await fetch(CONFIG.WORKER_URL, { headers: { 'X-Password': CONFIG.WORKER_PASSWORD } });
+  if (!resp.ok) throw new Error('Worker вернул ' + resp.status);
+  const buf = await resp.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+  return wb;
+}
+function findRow(ws, link) {
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const target = norm(link).replace(/\/+$/, '');
+  for (let r = 1; r <= range.e.r; r++) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c: COL.LINK - 1 })];
+    if (cell && cell.v && norm(cell.v).replace(/\/+$/, '') === target) return r + 1; // Excel row 1-based
+  }
+  return null;
+}
+function fillRow(ws, target, stats, share, shareChosen) {
+  let row = findRow(ws, target.ownerIdFull) || findRow(ws, 'https://vk.ru/' + (target.type === 'group' ? 'club' + target.id : 'id' + target.id));
+  if (!row) {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    row = range.e.r + 1; // новая строка в конец
+    log('Строка не найдена — добавляю новую (строка ' + row + ')');
+  }
+  const set = (col, val) => {
+    const addr = XLSX.utils.encode_cell({ r: row - 1, c: col - 1 });
+    ws[addr] = { t: typeof val === 'number' ? 'n' : 's', v: val };
+  };
+  set(COL.NAME, target.name);
+  set(COL.LINK, target.ownerIdFull);
+  set(COL.DESC, target.desc || '');
+  set(COL.SUBS, target.subs);
+  const pct = shareChosen === 'known' ? share.pctKnown : share.pctAll;
+  set(COL.SHARE, pct === null ? '' : Math.round(pct * 10) / 10);
+  set(COL.MAX, stats.max); set(COL.MIN, stats.min);
+  set(COL.AVG_V, stats.avgViews ? Math.round(stats.avgViews) : '');
+  set(COL.AVG_S, stats.avgSoc ? Math.round(stats.avgSoc) : '');
+  set(COL.POSTS, stats.posts);
+  set(COL.PERIOD, stats.periodText);
+  set(COL.MED_V, stats.medViews); set(COL.MED_S, stats.medSoc);
+  return row;
+}
+
+/* ================= ЗАПИСЬ НА ДИСК ================= */
+async function getDiskToken() {
+  try {
+    const r = await bridgeSend('VKWebAppStorageGet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN });
+    return r.value || '';
+  } catch (e) { return ''; }
+}
+async function saveDiskToken(tok) {
+  await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN, value: tok });
+}
+async function uploadXlsx(wb, safeMode) {
+  const token = await getDiskToken();
+  if (!token) { $('disk-setup').classList.remove('hidden'); throw new Error('Нужен OAuth-токен Диска — вставьте его ниже'); }
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  let path = 'disk:/' + CONFIG.DISK_PATH;
+  if (safeMode) {
+    const stamp = new Date().toLocaleDateString('ru-RU').replace(/\./g, '.');
+    path = path.replace(/\.xlsx$/i, ` (обновление ${stamp}).xlsx`);
+  }
+  log('Запрашиваю ссылку загрузки Диска: ' + path);
+  const up = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload-link?path=${encodeURIComponent(path)}&overwrite=true`,
+    { headers: { Authorization: 'OAuth ' + token } });
+  if (!up.ok) throw new Error('Диск: ошибка получения upload-link ' + up.status + ' (проверьте путь файла)');
+  const { href } = await up.json();
+  const put = await fetch(href, { method: 'PUT', body: blob });
+  if (!put.ok) throw new Error('Диск: загрузка не удалась ' + put.status);
+  log('Файл загружен на Диск: ' + path);
+  return path;
+}
+
+/* ================= ЭКРАНЫ И ПРОВЕРКА ДОСТУПА ================= */
+async function init() {
+  let uid = null;
+  try {
+    await bridgeSend('VKWebAppInit');
+  } catch (e) { /* не внутри ВК */ }
+  try {
+    const lp = await bridgeSend('VKWebAppGetLaunchParams');
+    uid = lp.vk_user_id;
+  } catch (e) {
+    const m = location.search.match(/vk_user_id=(\d+)/);
+    if (m) uid = +m[1];
+  }
+  if (!uid) {
+    show('gate');
+    $('gate-msg').innerHTML = 'Приложение нужно открывать внутри ВКонтакте:<br><b>https://vk.ru/app' + CONFIG.APP_ID + '</b>';
+    return;
+  }
+  if (CONFIG.ALLOWED_USER_IDS.length && !CONFIG.ALLOWED_USER_IDS.includes(uid)) {
+    show('gate');
+    $('gate-msg').innerHTML = '⛔ Доступ только для владельца.';
+    return;
+  }
+  if (!CONFIG.ALLOWED_USER_IDS.length) {
+    // Первый запуск: показываем detected id и просим вписать его в конфиг
+    show('gate');
+    $('gate-msg').innerHTML =
+      `Первый запуск. Ваш ID: <b>${uid}</b><br>` +
+      `Впишите его в CONFIG.ALLOWED_USER_IDS в файле filler/index.html и запушьте репозиторий. ` +
+      `До этого доступ открыт любому, кто откроет ссылку.`;
+    return;
+  }
+  state.vkUser = uid;
+  show('input');
+  try {
+    const t = await bridgeSend('VKWebAppGetAuthToken', { app_id: CONFIG.APP_ID, scope: 'wall,friends' });
+    state.token = t.access_token;
+    $('profile-line').textContent = 'Токен ВК получен ✓';
+  } catch (e) {
+    $('profile-line').innerHTML = '<span style="color:var(--err)">Токен не получен: разрешите доступ</span>';
+  }
+  const dt = await getDiskToken();
+  if (!dt) $('disk-setup').classList.remove('hidden');
+  else $('disk-status').textContent = 'Токен Диска сохранён ✓';
+}
+
+/* ================= ГЛАВНЫЙ СЦЕНАРИЙ ================= */
+async function run() {
+  const raw = $('inp-link').value;
+  if (!raw) { alert('Вставьте ссылку'); return; }
+  if (!state.token) { alert('Сначала разрешите доступ (обновите страницу)'); return; }
+  show('progress'); $('log').textContent = ''; $('prog-bar').value = 0;
+  try {
+    $('prog-title').textContent = 'Распознаю ссылку…';
+    const target = await resolveLink(raw);
+    state.target = target;
+    log(`Цель: ${target.type === 'group' ? 'сообщество' : 'личная страница'} «${target.name}» (id ${target.id}), ${fmtInt(target.subs)} подписчиков${target.type === 'user' && target.friends ? ' (+' + fmtInt(target.friends) + ' друзей)' : ''}`);
+
+    $('prog-title').textContent = 'Справочник городов…';
+    state.region = await buildRegion();
+
+    // подписчики
+    $('prog-title').textContent = 'Собираю подписчиков…';
+    let ids;
+    if (target.type === 'group') ids = await listMembers(target.id, n => $('prog-text').textContent = `Собрано ${fmtInt(n)}`);
+    else {
+      ids = await listFollowers(target.id, n => $('prog-text').textContent = `Подписчики: ${fmtInt(n)}`);
+      log(`Подписчики: ${fmtInt(ids.length)}`);
+      if (CONFIG.USER_COUNT_MODE === 'followers_plus_friends' && target.friends) {
+        const fr = await vkApi('friends.get', { user_id: target.id, count: 1000 });
+        const friendIds = (fr.items || []).slice(0, CONFIG.MAX_SUBSCRIBERS);
+        log(`Друзья: ${fmtInt(friendIds.length)} (объединяю со списком)`);
+        const seen = new Set(ids); friendIds.forEach(x => { if (!seen.has(x)) { ids.push(x); seen.add(x); } });
+      }
+    }
+    if (target.subs > CONFIG.MAX_SUBSCRIBERS) {
+      log(`⚠ У цели ${fmtInt(target.subs)} подписчиков — перебор ограничен ${fmtInt(CONFIG.MAX_SUBSCRIBERS)} (лимит ВК по offset). Доля местных считается по этой выборке.`);
+    }
+
+    // города
+    $('prog-title').textContent = 'Определяю города подписчиков…';
+    const { cities, towns } = await fetchCities(ids);
+    log(`Города известны для ${fmtInt(cities.size)} из ${fmtInt(ids.length)}; строк «родной город»: ${fmtInt(towns.length)}`);
+
+    // доля местных
+    const mode = document.querySelector('input[name=mode]:checked').value;
+    const share = computeShare(ids, cities, towns, mode, state.region);
+    state.share = share;
+
+    // посты
+    $('prog-title').textContent = 'Читаю посты…';
+    const periodDays = +$('sel-period').value;
+    const stats = await wallStats(target.ownerId, periodDays, n => $('prog-text').textContent = `Постов собрано: ${n}`);
+    state.wallStats = stats;
+    log(`Постов за период: ${stats.posts} (с просмотрами: ${stats.withViews})`);
+
+    showResult();
+  } catch (e) {
+    console.error(e);
+    log('❌ ' + (e.message || e));
+    $('prog-title').textContent = 'Ошибка';
+    $('prog-text').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span><br><button class="btn btn-secondary" onclick="show(\'input\')">Назад</button>';
+  }
+}
+
+function showResult() {
+  const t = state.target, s = state.wallStats, sh = state.share;
+  show('result');
+  $('res-title').textContent = `${t.type === 'group' ? 'Сообщество' : 'Личная страница'}: ${t.name}`;
+  $('res-metrics').innerHTML = `
+    <div class="metric"><span>Ссылка</span><b>${t.ownerIdFull}</b></div>
+    <div class="metric"><span>Подписчики всего</span><b>${fmtInt(t.subs)}</b></div>
+    <div class="metric"><span>Постов за период</span><b>${s.posts} (с просмотрами: ${s.withViews})</b></div>
+    <div class="metric"><span>Периодичность</span><b>${s.periodText || '—'}</b></div>
+    <div class="metric"><span>Просмотры: max / min</span><b>${fmtInt(s.max)} / ${fmtInt(s.min)}</b></div>
+    <div class="metric"><span>Просмотры: среднее / медиана</span><b>${fmtInt(s.avgViews)} / ${fmtInt(s.medViews)}</b></div>
+    <div class="metric"><span>Соцреакции: среднее / медиана</span><b>${fmtInt(s.avgSoc)} / ${fmtInt(s.medSoc)}</b></div>`;
+  $('share-all').textContent = fmtPct(sh.pctAll) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.total)})`;
+  $('share-known').textContent = fmtPct(sh.pctKnown) + `  (${fmtInt(sh.localApprox)} из ${fmtInt(sh.withCity + sh.townLocal)})`;
+}
+
+async function saveRow() {
+  const btn = $('btn-save'); btn.disabled = true; $('save-status').textContent = '';
+  try {
+    const wb = await loadTable();
+    const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
+    const denom = document.querySelector('input[name=denom]:checked').value;
+    const row = fillRow(ws, state.target, state.wallStats, state.share, denom);
+    log(`Строка ${row} обновлена`);
+    const path = await uploadXlsx(wb, $('chk-safe').checked);
+    $('save-status').innerHTML = '<span style="color:var(--ok)">Готово: ' + path + '</span>';
+  } catch (e) {
+    $('save-status').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span>';
+    log('❌ ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+async function downloadXlsx() {
+  try {
+    const wb = await loadTable();
+    const ws = wb.Sheets[CONFIG.SHEET] || wb.Sheets[wb.SheetNames[0]];
+    const denom = document.querySelector('input[name=denom]:checked').value;
+    fillRow(ws, state.target, state.wallStats, state.share, denom);
+    const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = state.target.name.replace(/[\\/:*?"<>|]/g, '_') + '.xlsx';
+    a.click();
+    $('save-status').textContent = 'Файл скачан (не записан на Диск).';
+  } catch (e) {
+    $('save-status').innerHTML = '<span style="color:var(--err)">' + (e.message || e) + '</span>';
+  }
+}
+
+/* ================= ПРИВЯЗКА СОБЫТИЙ ================= */
+document.querySelectorAll('input[name=mode]').forEach(r =>
+  r.addEventListener('change', () => $('inp-cities').classList.toggle('hidden', r.value !== 'custom')));
+$('btn-run').addEventListener('click', run);
+$('btn-save').addEventListener('click', saveRow);
+$('btn-download').addEventListener('click', downloadXlsx);
+$('btn-restart').addEventListener('click', () => show('input'));
+$('btn-disk-save').addEventListener('click', async () => {
+  const tok = $('inp-disk-token').value.trim();
+  if (!tok) return;
+  await saveDiskToken(tok);
+  $('disk-status').textContent = 'Токен Диска сохранён ✓';
+  $('disk-setup').classList.add('hidden');
+});
+
+init();
+</script>
+</body>
+</html>
