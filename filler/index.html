@@ -1,17 +1,4 @@
 <!DOCTYPE html>
-<!--
-  Заполнитель таблицы «Блоггеры ВК Красноярск» — VK Mini App.
-  Хостинг: GitHub Pages (в папке filler/ репозитория bloggers).
-  Адрес в настройках приложения (вкладка «Размещение»): https://minpravkrsk-del.github.io/bloggers/filler/index.html
-  Ссылка приложения: https://vk.ru/app54798571
-
-  Порядок работы:
-  1. Приложение проверяет ваш user_id (замок приватности).
-  2. Запрашивает токен ВК с правами wall,friends (один клик «Разрешить»).
-  3. Вы вставляете ссылку на блогера (личная страница или сообщество).
-  4. Скрипт собирает: подписчиков/друзей, их города, посты за 5 месяцев.
-  5. Считает метрики и долю местных; пишет строку в xlsx на Яндекс Диске.
--->
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -145,7 +132,7 @@
 const CONFIG = {
   APP_ID: 54798571,                                   // Мини-приложение ВК
   ALLOWED_USER_IDS: [],                               // [] = экран настройки при первом запуске; вписать свой vk id, напр. [12345678]
-  WORKER_URL: 'https://bloggers-data.minpravkrsk.workers.dev/',
+  WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',  // функция Яндекс Клауда (бывший Cloudflare Worker); X-Password в заголовке
   WORKER_PASSWORD: 'Uip26',
   DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к файлу на вашем Диске (относительно корня); при ошибке записи поправьте здесь
   PERIOD_DAYS_DEFAULT: 153,                           // 5 месяцев
