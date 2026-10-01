@@ -989,9 +989,12 @@ function wireUI() {
 async function init() {
   show('gate');
   if (!window.vkBridge) {
-    $('gate-msg').textContent = 'Не загрузился VK Bridge (CDN). Проверьте интернет и обновите страницу.';
+    $('gate-msg').textContent = 'Не загрузился VK Bridge. Проверьте интернет и обновите страницу.';
     return;
   }
+  // обязательный первый сигнал ВК: «приложение запустилось»
+  try { await bridgeSend('VKWebAppInit', {}, 5000); log('VKWebAppInit: отправлен'); }
+  catch (e) { log('⚠ VKWebAppInit: ' + (e.message || e)); }
   try {
     const u = await bridgeSend('VKWebAppGetUserInfo');
     state.vkUser = u;
