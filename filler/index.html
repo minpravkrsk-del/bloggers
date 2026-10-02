@@ -192,7 +192,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <div id="disk-setup" class="card hidden">
     <h2>OAuth-токен Яндекс Диска</h2>
     <input type="text" id="inp-disk-token" placeholder="y0_AgAA...">
-    <div class="muted">Получите один раз на oauth.yandex.ru (право «Яндекс Диск REST API»: запись и чтение). Токен сохранится в хранилище ВК, привязанном к вашему аккаунту и приложению.</div>
+    <div class="muted">Получите один раз на oauth.yandex.ru (право «Яндекс Диск REST API»: запись и чтение). Токен живёт около года; хранится в хранилище ВК, привязанном к вашему аккаунту и приложению. Если смените пароль Яндекса или отзовёте доступ приложения — получите новый.</div>
     <button class="btn btn-secondary" id="btn-disk-save">Сохранить токен</button>
     <div class="muted" id="disk-status"></div>
   </div>
@@ -296,12 +296,21 @@ async function diskEnsureFolder() {
     { method: 'PUT', headers: diskHeaders() });
   if (r.ok) return true;
   if (r.status === 409) return true; // уже существует
+  if (r.status === 401) throw diskAuthError();
   throw new Error('Диск: не создать папку кэша (' + r.status + ')');
+}
+function diskAuthError() {
+  state.diskToken = null;
+  $('disk-setup').classList.remove('hidden');
+  $('disk-setup').classList.add('card');
+  $('queue-line').textContent = 'Токен Диска не принят (401) — сохраните новый.';
+  return new Error('Токен Диска не принят (401). Вернитесь назад, обновите токен на oauth.yandex.ru и сохраните его ниже.');
 }
 async function diskDownload(path) {
   const link = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}`,
     { headers: diskHeaders() });
   if (link.status === 404) return null;
+  if (link.status === 401) throw diskAuthError();
   if (!link.ok) throw new Error('Диск: download-link ' + link.status);
   const { href } = await link.json();
   const r = await fetch(href);
@@ -312,6 +321,7 @@ async function diskDownload(path) {
 async function diskUpload(path, data, mime) {
   const up = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload-link?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
     { headers: diskHeaders() });
+  if (up.status === 401) throw diskAuthError();
   if (!up.ok) throw new Error('Диск: upload-link ' + up.status + ' для ' + path);
   const { href } = await up.json();
   const put = await fetch(href, { method: 'PUT', body: data });
@@ -803,11 +813,15 @@ async function run() {
     log('❌ ' + (e.message || (e.error_data && e.error_data.error_msg) || JSON.stringify(e)));
     $('prog-title').textContent = 'Ошибка';
     $('prog-text').textContent = 'Подробности в журнале ниже. Прогресс сохранён на Диске — можно продолжить позже с того же места.';
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-secondary';
+    let btn = $('screen-progress').querySelector('.card #btn-back');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'btn-back';
+      btn.className = 'btn btn-secondary';
+      $('screen-progress').querySelector('.card').appendChild(btn);
+    }
     btn.textContent = '← Вернуться';
     btn.onclick = () => show('input');
-    $('screen-progress').querySelector('.card').appendChild(btn);
   }
 }
 
@@ -953,9 +967,11 @@ async function saveDiskToken() {
   const t = $('inp-disk-token').value.trim();
   if (!/^y0_/.test(t)) { $('disk-status').textContent = 'Токен Яндекс Диска начинается с y0_'; return; }
   state.diskToken = t;
+  state.diskTokenDate = new Date().toISOString().slice(0, 10);
   $('disk-status').textContent = 'Сохраняю…';
   try {
     await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN, value: t });
+    try { await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN + '_date', value: state.diskTokenDate }); } catch (e) {}
     $('disk-status').innerHTML = '<span style="color:var(--ok)">Токен сохранён в хранилище ВК.</span>';
     try { await diskEnsureFolder(); } catch (e) { $('disk-status').innerHTML = '<span style="color:var(--warn)">' + escapeHtml(e.message) + '</span>'; return; }
     try {
@@ -1036,9 +1052,15 @@ async function init() {
 
 async function backgroundLoad() {
   try {
-    const st = await bridgeSend('VKWebAppStorageGet', { keys: [CONFIG.STORAGE_KEY_DISK_TOKEN] });
+    const st = await bridgeSend('VKWebAppStorageGet', { keys: [CONFIG.STORAGE_KEY_DISK_TOKEN, CONFIG.STORAGE_KEY_DISK_TOKEN + '_date'] });
     const kv = (st.keys || []).find(x => x.key === CONFIG.STORAGE_KEY_DISK_TOKEN);
     if (kv && kv.value) state.diskToken = kv.value;
+    const kd = (st.keys || []).find(x => x.key === CONFIG.STORAGE_KEY_DISK_TOKEN + '_date');
+    if (kd && kd.value) state.diskTokenDate = kd.value;
+    if (state.diskToken && state.diskTokenDate) {
+      const ageDays = Math.floor((Date.now() - Date.parse(state.diskTokenDate)) / 86400000);
+      if (ageDays > 300) state.diskTokenAgeWarn = 'Токен Диска сохранён ' + state.diskTokenDate + ' (уже ' + ageDays + ' дн.) — срок подходит к году, при 401 получите новый.';
+    }
   } catch (e) {}
   if (state.diskToken) {
     try { await diskEnsureFolder(); } catch (e) { log('⚠ ' + e.message); }
@@ -1065,7 +1087,8 @@ function showTableError(e) {
 }
 
 async function loadTableFlow() {
-  $('table-status').textContent = 'Загружаю список из таблицы…';
+  if (state.diskTokenAgeWarn) $('table-status').textContent = '⚠ ' + state.diskTokenAgeWarn;
+  else $('table-status').textContent = 'Загружаю список из таблицы…';
   try {
     state.table = await loadTable();
     state.tableRows = buildRowIndex(state.table);
