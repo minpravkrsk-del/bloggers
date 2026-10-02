@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v14 · 02.10.2026</div>
+    <div class="muted">Сборка: v15 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v14 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v15 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -329,20 +329,28 @@ function diskAuthError() {
   $('queue-line').textContent = 'Токен Диска не принят (401) — сохраните новый.';
   return new Error('Токен Диска не принят (401). Вернитесь назад, обновите токен на oauth.yandex.ru и сохраните его ниже.');
 }
+async function fetchRetry(url, opts, tries = 2) { // одна повторная попытка при сетевом сбое (Failed to fetch)
+  let err;
+  for (let i = 0; i < tries; i++) {
+    try { return await fetch(url, opts); }
+    catch (e) { err = e; if (i < tries - 1) await new Promise(r => setTimeout(r, 1500)); }
+  }
+  throw err;
+}
 async function diskDownload(path) {
-  const link = await fetch(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}`,
+  const link = await fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}`,
     { headers: diskHeaders() });
   if (link.status === 404) return null;
   if (link.status === 401) throw diskAuthError();
   if (!link.ok) throw new Error('Диск: download-link ' + link.status);
   const { href } = await link.json();
-  const r = await fetch(href);
+  const r = await fetchRetry(href);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error('Диск: файл ' + path + ' — ' + r.status);
   return await r.arrayBuffer();
 }
 async function diskUpload(path, data, mime) {
-  const mkLink = () => fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
+  const mkLink = () => fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
     { headers: diskHeaders() });
   let up = await mkLink();
   if (!up.ok) {
@@ -360,7 +368,7 @@ async function diskUpload(path, data, mime) {
     throw new Error('Диск: upload-link ' + up.status + ' для ' + path + (body ? ' — ' + body.slice(0, 300) : ''));
   }
   const { href } = await up.json();
-  const put = await fetch(href, { method: 'PUT', body: data });
+  const put = await fetchRetry(href, { method: 'PUT', body: data });
   if (!put.ok) throw new Error('Диск: загрузка ' + path + ' — ' + put.status);
 }
 async function diskGetJson(path) {
