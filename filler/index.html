@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v11 · 02.10.2026</div>
+    <div class="muted">Сборка: v12 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v11 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v12 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -342,7 +342,7 @@ async function diskDownload(path) {
   return await r.arrayBuffer();
 }
 async function diskUpload(path, data, mime) {
-  const mkLink = () => fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload-link?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
+  const mkLink = () => fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
     { headers: diskHeaders() });
   let up = await mkLink();
   if (up.status === 400) { // 400 = нет родительской папки — создаём и пробуем ещё раз
