@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v15 · 02.10.2026</div>
+    <div class="muted">Сборка: v17 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v15 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v17 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -294,7 +294,11 @@ function vkApi(method, params, attempt = 0) {
 }
 
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
-function diskHeaders() { return { Authorization: 'OAuth ' + state.diskToken }; }
+function diskHeaders() {
+  const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, '');
+  state.diskToken = t;
+  return { Authorization: 'OAuth ' + t };
+}
 async function diskEnsureFolder(dir) {
   const parts = (dir || CONFIG.CACHE_DIR).split('/').filter(Boolean);
   let cur = '';
@@ -796,6 +800,7 @@ async function run() {
   if (!state.token) { alert('Сначала разрешите доступ (обновите страницу)'); return; }
   show('progress'); $('log').textContent = ''; $('prog-bar').value = 0;
   log('Сборка филлера: ' + CONFIG.VER);
+  log('Токен Диска: ' + ((state.diskToken || '').length) + ' симв. (норма ~90–120), Диск: ' + (navigator.onLine ? 'сеть есть' : 'сети НЕТ'));
   try {
     // 1. определить цель
     let target;
@@ -856,7 +861,10 @@ async function run() {
     await saveProgress(prog);
     showResult();
   } catch (e) {
-    log('❌ ' + (e.message || (e.error_data && e.error_data.error_msg) || JSON.stringify(e)));
+    let emsg = (e.message || (e.error_data && e.error_data.error_msg) || JSON.stringify(e));
+    if ((e.message || '').includes('Failed to fetch'))
+      emsg += ' — не достучаться до Диска: проверьте сеть (Wi-Fi/мобильный интернет) или откройте приложение в браузере на компьютере (vk.ru/app54798571)';
+    log('❌ ' + emsg);
     $('prog-title').textContent = 'Ошибка';
     $('prog-text').textContent = 'Подробности в журнале ниже. Прогресс сохранён на Диске — можно продолжить позже с того же места.';
     let btn = $('screen-progress').querySelector('.card #btn-back');
