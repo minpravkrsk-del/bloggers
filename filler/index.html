@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v20 · 02.10.2026</div>
+    <div class="muted">Сборка: v21 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v20 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v21 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -294,7 +294,7 @@ function vkApi(method, params, attempt = 0) {
 }
 
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
-function diskTokenParam() { return '&oauth_token=' + encodeURIComponent(state.diskToken || ''); }
+function diskTokenParam() { return '&oauth_token=' + encodeURIComponent((state.diskToken || '').replace(/[^A-Za-z0-9_\-]/g, '')); }
 function diskHeaders() { const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, ''); state.diskToken = t; return { Authorization: 'OAuth ' + t }; }
 async function diskReq(url, opts) { // запрос к API Диска с одним повтором при транзиентном 401
   let r = await fetchRetry(url, opts);
@@ -1030,11 +1030,12 @@ function renderPicker() {
 
 /* ================= ТОКЕН ДИСКА ================= */
 async function saveDiskToken() {
-  const t = $('inp-disk-token').value.trim();
+  const t = $('inp-disk-token').value.replace(/[^A-Za-z0-9_\-]/g, ''); // вычищаем всё, кроме ASCII-символов токена
+  $('inp-disk-token').value = t;
   if (!/^y0_/.test(t)) { $('disk-status').textContent = 'Токен Яндекс Диска начинается с y0_'; return; }
   state.diskToken = t;
   state.diskTokenDate = new Date().toISOString().slice(0, 10);
-  $('disk-status').textContent = 'Сохраняю…';
+  $('disk-status').textContent = 'Сохраняю… (длина токена ' + t.length + ' симв.)';
   try {
     await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN, value: t });
     try { await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN + '_date', value: state.diskTokenDate }); } catch (e) {}
