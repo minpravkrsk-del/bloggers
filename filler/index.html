@@ -1058,7 +1058,7 @@ async function loadTableFlow() {
   $('table-status').textContent = 'Загружаю список из таблицы…';
   try {
     state.table = await loadTable();
-    state.tableRows = buildRowIndex(state.table.wb);
+    state.tableRows = buildRowIndex(state.table);
     renderPicker();
     log('Список из таблицы готов: ' + state.tableRows.length + ' блогеров');
     $('table-status').textContent = '';
