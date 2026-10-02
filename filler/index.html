@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v12 · 02.10.2026</div>
+    <div class="muted">Сборка: v14 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -209,9 +209,9 @@ const CONFIG = {
   ALLOWED_USER_IDS: [1043833],
   WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',
   WORKER_PASSWORD: 'Uip26',
-  DISK_DIR: 'Блоггеры',                                // папка на Диске, где лежит таблица
-  DISK_PATH: 'Блоггеры/Bloggers VK krsk.xlsx',  // путь к основной таблице от корня Диска
-  BACKUP_DIR: 'Блоггеры/резервные копии',              // резервные копии таблицы перед перезаписью
+  DISK_DIR: 'Блогеры',                                  // папка на Диске, где лежит таблица
+  DISK_PATH: 'Блогеры/Bloggers VK krsk.xlsx',  // путь к основной таблице от корня Диска
+  BACKUP_DIR: 'Блогеры/резервные копии',               // резервные копии таблицы перед перезаписью
   CACHE_DIR: '_filler_cache',                          // папка кэша и очереди на Диске
   PERIOD_DAYS_DEFAULT: 153,
   MAX_SUBSCRIBERS: 10000,                              // лимит перебора ВК (offset до 10000)
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v12 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v14 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -345,9 +345,13 @@ async function diskUpload(path, data, mime) {
   const mkLink = () => fetch(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
     { headers: diskHeaders() });
   let up = await mkLink();
-  if (up.status === 400) { // 400 = нет родительской папки — создаём и пробуем ещё раз
-    const dir = path.split('/').slice(0, -1).join('/');
-    if (dir) { log('Создаю папку ' + dir + ' и повторяю загрузку…'); await diskEnsureFolder(dir); up = await mkLink(); }
+  if (!up.ok) {
+    let body0 = '';
+    try { body0 = await up.clone().text(); } catch (e) {}
+    if ((up.status === 400 || up.status === 409) && body0.includes('DiskPathDoesntExistsError')) { // нет родительской папки — создаём и пробуем ещё раз
+      const dir = path.split('/').slice(0, -1).join('/');
+      if (dir) { log('Создаю папку ' + dir + ' и повторяю загрузку…'); await diskEnsureFolder(dir); up = await mkLink(); }
+    }
   }
   if (up.status === 401) throw diskAuthError();
   if (!up.ok) {
