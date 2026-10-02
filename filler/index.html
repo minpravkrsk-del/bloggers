@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v24 · план Б · 02.10.2026</div>
+    <div class="muted">Сборка: v25 · план Б · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v24 · 02.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
+  VER: 'v25 · 02.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -359,7 +359,12 @@ async function funcProxy(method, url, body) {
     body: JSON.stringify(payload)
   }, 2);
   if (!resp.ok) throw new Error('Прокси: HTTP ' + resp.status);
-  const r = await resp.json();
+  let r;
+  try {
+    r = await resp.json();
+  } catch (e) {
+    throw new Error('Прокси: функция ответила не JSON (похоже, в функции не загружен новый код план Б — вставьте yandex_function_proxy.py целиком и создайте версию)');
+  }
   if (r.error) throw new Error('Прокси: ' + r.error);
   const proxyResp = { status: r.status, contentType: r.content_type || '',
            text: async () => new TextDecoder().decode(await bytesOf(r.body_b64)),
