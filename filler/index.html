@@ -600,6 +600,9 @@ async function loadTable() {
   finally { clearTimeout(tmr); }
   if (!resp.ok) throw new Error('Таблица: функция вернула ' + resp.status);
   const buf = await resp.arrayBuffer();
+  const head = new Uint8Array(buf.slice(0, 4));
+  if (!(head[0] === 0x50 && head[1] === 0x4B))
+    throw new Error('функция отдала не xlsx (' + buf.byteLength + ' байт) — повторите ещё раз');
   const wb = XLSX.read(buf, { type: 'array' });
   return wb;
 }
@@ -1036,14 +1039,31 @@ async function backgroundLoad() {
     $('disk-setup').classList.remove('hidden');
     $('disk-setup').classList.add('card');
   }
+  await loadTableFlow();
+}
+
+function showTableError(e) {
+  const msg = e.message || String(e);
+  log('⚠ Таблица: ' + msg);
+  $('table-status').innerHTML = '⚠ Таблица не загрузилась: ' + escapeHtml(msg) + '. ';
+  const b = document.createElement('button');
+  b.className = 'btn btn-secondary';
+  b.style.fontSize = '12px'; b.style.padding = '6px 10px';
+  b.textContent = 'Повторить';
+  b.onclick = loadTableFlow;
+  $('table-status').appendChild(b);
+}
+
+async function loadTableFlow() {
+  $('table-status').textContent = 'Загружаю список из таблицы…';
   try {
     state.table = await loadTable();
     state.tableRows = buildRowIndex(state.table.wb);
     renderPicker();
     log('Список из таблицы готов: ' + state.tableRows.length + ' блогеров');
+    $('table-status').textContent = '';
   } catch (e) {
-    log('⚠ Таблица: ' + (e.message || e));
-    $('table-status').textContent = '⚠ Таблица не загрузилась — режим «Из таблицы» недоступен. Можно повторить из вкладки «Из таблицы».';
+    showTableError(e);
   }
 }
 
