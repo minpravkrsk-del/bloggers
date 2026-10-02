@@ -208,7 +208,9 @@ const CONFIG = {
   ALLOWED_USER_IDS: [1043833],
   WORKER_URL: 'https://functions.yandexcloud.net/d4e0sro15clfhvups29g',
   WORKER_PASSWORD: 'Uip26',
-  DISK_PATH: 'Блоггеры ВК Красноярск 25.09.26.xlsx',  // путь к основной таблице от корня Диска
+  DISK_DIR: 'Блоггеры',                                // папка на Диске, где лежит таблица
+  DISK_PATH: 'Блоггеры/Bloggers VK krsk.xlsx',  // путь к основной таблице от корня Диска
+  BACKUP_DIR: 'Блоггеры/резервные копии',              // резервные копии таблицы перед перезаписью
   CACHE_DIR: '_filler_cache',                          // папка кэша и очереди на Диске
   PERIOD_DAYS_DEFAULT: 153,
   MAX_SUBSCRIBERS: 10000,                              // лимит перебора ВК (offset до 10000)
@@ -291,13 +293,26 @@ function vkApi(method, params, attempt = 0) {
 
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
 function diskHeaders() { return { Authorization: 'OAuth ' + state.diskToken }; }
-async function diskEnsureFolder() {
-  const r = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent('disk:/' + CONFIG.CACHE_DIR)}`,
+async function diskEnsureFolder(dir) {
+  const p = dir || CONFIG.CACHE_DIR;
+  const r = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent('disk:/' + p)}`,
     { method: 'PUT', headers: diskHeaders() });
   if (r.ok) return true;
   if (r.status === 409) return true; // уже существует
   if (r.status === 401) throw diskAuthError();
-  throw new Error('Диск: не создать папку кэша (' + r.status + ')');
+  throw new Error('Диск: не создать папку ' + p + ' (' + r.status + ')');
+}
+// Резервная копия основной таблицы перед перезаписью: скачивает текущую и кладёт в BACKUP_DIR
+async function diskBackupMain() {
+  const buf = await diskDownload(CONFIG.DISK_PATH);
+  if (!buf) { log('⚠ Резерв: основной файл не найден на Диске (' + CONFIG.DISK_PATH + ') — запись прервана'); throw new Error('Основная таблица не найдена на Диске: ' + CONFIG.DISK_PATH); }
+  await diskEnsureFolder(CONFIG.BACKUP_DIR);
+  const d = new Date(), p2 = n => String(n).padStart(2, '0');
+  const stamp = `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}`;
+  const base = CONFIG.DISK_PATH.replace(/\.xlsx$/i, '').split('/').pop();
+  const path = CONFIG.BACKUP_DIR + '/' + base + `_резерв_${stamp}.xlsx`;
+  await diskUpload(path, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  log('Резервная копия сохранена: ' + path);
 }
 function diskAuthError() {
   state.diskToken = null;
@@ -720,6 +735,7 @@ async function mergeQueue() {
     const safe = $('chk-safe').checked;
     let path = CONFIG.DISK_PATH;
     if (safe) path = path.replace(/\.xlsx$/i, ` (обновление ${new Date().toLocaleDateString('ru-RU')}).xlsx`);
+    if (!safe) await diskBackupMain();
     await diskEnsureFolder();
     await diskUpload(path, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     $('merge-status').innerHTML = `<span style="color:var(--ok)">Готово: обновлено ${updated}, добавлено ${added}. Файл: ${path}</span>`;
@@ -919,6 +935,7 @@ $('btn-direct').onclick = async () => {
     const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     let path = CONFIG.DISK_PATH;
     if ($('chk-safe').checked) path = path.replace(/\.xlsx$/i, ` (обновление ${new Date().toLocaleDateString('ru-RU')}).xlsx`);
+    if (!$('chk-safe').checked) await diskBackupMain();
     await diskUpload(path, data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     $('save-status').innerHTML = `<span style="color:var(--ok)">Записано в строку ${row}. Файл: ${escapeHtml(path)}</span>`;
   } catch (e) {
