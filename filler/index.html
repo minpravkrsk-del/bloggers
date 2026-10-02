@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v18 · 02.10.2026</div>
+    <div class="muted">Сборка: v19 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v18 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v19 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -294,18 +294,14 @@ function vkApi(method, params, attempt = 0) {
 }
 
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
-function diskHeaders() {
-  const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, '');
-  state.diskToken = t;
-  return { Authorization: 'OAuth ' + t };
-}
+function diskTokenParam() { return '&oauth_token=' + encodeURIComponent(state.diskToken || ''); }
+function diskHeaders() { const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, ''); state.diskToken = t; return { Authorization: 'OAuth ' + t }; }
 async function diskEnsureFolder(dir) {
   const parts = (dir || CONFIG.CACHE_DIR).split('/').filter(Boolean);
   let cur = '';
   for (const seg of parts) {
     cur += (cur ? '/' : '') + seg;
-    const r = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent('disk:/' + cur)}`,
-      { method: 'PUT', headers: diskHeaders() });
+    const r = await fetch(`https://cloud-api.yandex.net/v1/disk/resources?path=${encodeURIComponent('disk:/' + cur)}${diskTokenParam()}`, { method: 'PUT' });
     if (r.ok || r.status === 409) continue; // создана или уже существует
     if (r.status === 401) throw diskAuthError();
     let body = '';
@@ -342,8 +338,7 @@ async function fetchRetry(url, opts, tries = 2) { // одна повторная
   throw err;
 }
 async function diskDownload(path) {
-  const link = await fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}`,
-    { headers: diskHeaders() });
+  const link = await fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/download?path=${encodeURIComponent('disk:/' + path)}${diskTokenParam()}`);
   if (link.status === 404) return null;
   if (link.status === 401) throw diskAuthError();
   if (!link.ok) throw new Error('Диск: download-link ' + link.status);
@@ -354,8 +349,7 @@ async function diskDownload(path) {
   return await r.arrayBuffer();
 }
 async function diskUpload(path, data, mime) {
-  const mkLink = () => fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true`,
-    { headers: diskHeaders() });
+  const mkLink = () => fetchRetry(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true${diskTokenParam()}`);
   let up = await mkLink();
   if (!up.ok) {
     let body0 = '';
