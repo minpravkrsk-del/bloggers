@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v22 · 02.10.2026</div>
+    <div class="muted">Сборка: v23 · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v22 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v23 · 02.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -294,9 +294,10 @@ function vkApi(method, params, attempt = 0) {
 }
 
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
-function diskTokenParam() { return '&oauth_token=' + encodeURIComponent((state.diskToken || '').replace(/[^A-Za-z0-9_\-]/g, '')); }
+function diskTokenParam() { return ''; } // токен в URL Яндекс НЕ авторизует (проверено: query → 401, заголовок → 200) — передаём заголовком (v23)
 function diskHeaders() { const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, ''); state.diskToken = t; return { Authorization: 'OAuth ' + t }; }
-async function diskReq(url, opts) { // запрос к API Диска с одним повтором при транзиентном 401
+async function diskReq(url, opts) { // запрос к API Диска: всегда с Authorization-заголовком + один повтор при транзиентном 401
+  opts = Object.assign({}, opts || {}, { headers: diskHeaders() });
   let r = await fetchRetry(url, opts);
   if (r.status === 401) {
     await new Promise(res => setTimeout(res, 1500));
@@ -1041,7 +1042,7 @@ async function saveDiskToken() {
     try { await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN + '_date', value: state.diskTokenDate }); } catch (e) {}
     let ok = false; // живая проверка токена при сохранении: видно, чей аккаунт и что отвечает сервер
     try {
-      const chk = await fetchRetry('https://cloud-api.yandex.net/v1/disk/?oauth_token=' + encodeURIComponent(t));
+      const chk = await fetchRetry('https://cloud-api.yandex.net/v1/disk/', { headers: { Authorization: 'OAuth ' + t } });
       if (chk.ok) {
         const di = await chk.json();
         $('disk-status').innerHTML = '<span style="color:var(--ok)">Токен принят, аккаунт: ' + escapeHtml((di.user && di.user.login) || '?') + '.</span>';
