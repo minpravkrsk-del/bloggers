@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v23 · 02.10.2026</div>
+    <div class="muted">Сборка: v24 · план Б · 02.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v23 · 02.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v24 · 02.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -235,7 +235,8 @@ const state = {
   table: null,                  // {wb, ws, rows:[{row,id,type,name,subs,missing[]}]}
   progress: null,               // текущий блогер (объект прогресса)
   queue: [],                    // [{id,link,name,desc,subs,share,shareDenom,posts,max,min,avgViews,medViews,avgSoc,medSoc,period,ts}]
-  fromTableItem: null           // выбранный из списка
+  fromTableItem: null,          // выбранный из списка
+  diskViaProxy: false           // план Б: запросы Диска через клауд-функцию (после первого сетевого сбоя)
 };
 
 /* ================= УТИЛИТЫ ================= */
@@ -296,12 +297,13 @@ function vkApi(method, params, attempt = 0) {
 /* ================= ЯНДЕКС ДИСК (кэш и очередь) ================= */
 function diskTokenParam() { return ''; } // токен в URL Яндекс НЕ авторизует (проверено: query → 401, заголовок → 200) — передаём заголовком (v23)
 function diskHeaders() { const t = (state.diskToken || '').replace(/[\s\r\n\t]+/g, ''); state.diskToken = t; return { Authorization: 'OAuth ' + t }; }
-async function diskReq(url, opts) { // запрос к API Диска: всегда с Authorization-заголовком + один повтор при транзиентном 401
-  opts = Object.assign({}, opts || {}, { headers: diskHeaders() });
-  let r = await fetchRetry(url, opts);
+async function diskReq(url, opts) { // запрос к API Диска: Authorization-заголовок + один повтор при транзиентном 401 + план Б при сетевом сбое
+  const method = (opts && opts.method) || 'GET';
+  const body = opts && opts.body;
+  let r = await diskCall(method, url, body);
   if (r.status === 401) {
     await new Promise(res => setTimeout(res, 1500));
-    r = await fetchRetry(url, opts);
+    r = await diskCall(method, url, body);
     if (r.status === 401) throw diskAuthError();
     log('⚠ Диск ответил 401, повтор через 1,5 с помог — это был разовый сбой.');
   }
@@ -340,6 +342,52 @@ function diskAuthError() {
   $('queue-line').textContent = 'Токен Диска не принят (401) — сохраните новый.';
   return new Error('Токен Диска не принят (401). Вернитесь назад, обновите токен на oauth.yandex.ru и сохраните его ниже.');
 }
+/* ===== ПЛАН Б: ПРОКСИ ЧЕРЕЗ КЛАУД-ФУНКЦИЮ =====
+   Если веб-вью рвёт прямые запросы к yandex.net (Failed to fetch), все дисковые запросы
+   уходят в клауд-функцию (POST + JSON-инструкция), которая делает их со своего сервера. */
+async function funcProxy(method, url, body) {
+  const payload = { method, url, token: (state.diskToken || '').replace(/[^A-Za-z0-9_\-]/g, '') };
+  if (body) {
+    payload.body_b64 = body instanceof ArrayBuffer
+      ? bufToB64(body)
+      : btoa(unescape(encodeURIComponent(String(body))));
+    payload.content_type = body instanceof ArrayBuffer ? 'application/octet-stream' : 'application/json';
+  }
+  const resp = await fetchRetry(CONFIG.WORKER_URL, {
+    method: 'POST',
+    headers: { 'X-Password': CONFIG.WORKER_PASSWORD, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, 2);
+  if (!resp.ok) throw new Error('Прокси: HTTP ' + resp.status);
+  const r = await resp.json();
+  if (r.error) throw new Error('Прокси: ' + r.error);
+  const proxyResp = { status: r.status, contentType: r.content_type || '',
+           text: async () => new TextDecoder().decode(await bytesOf(r.body_b64)),
+           json: async () => JSON.parse(new TextDecoder().decode(await bytesOf(r.body_b64))),
+           buffer: () => bytesOf(r.body_b64) };
+  Object.defineProperty(proxyResp, 'ok', { get: () => r.status >= 200 && r.status < 300 }); // совместимость с проверками .ok
+  return proxyResp;
+}
+function bufToB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
+async function bytesOf(b64) { const s = atob(b64); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a.buffer; }
+
+// Жёсткая апертура: если включён прокси — всё через него; иначе сначала прямое, при сетевом сбое переключаемся
+async function diskCall(method, url, body) {
+  if (state.diskViaProxy) return funcProxy(method, url, body);
+  try {
+    const opts = Object.assign({}, method === 'PUT' || method === 'POST' ? { method, body } : (method === 'GET' ? {} : { method }),
+      { headers: method === 'GET' ? diskHeaders() : Object.assign({ Authorization: 'OAuth ' + (state.diskToken || '') }, body ? { 'Content-Type': 'application/json' } : {}) });
+    return await fetchRetry(url, opts);
+  } catch (e) {
+    if (state.diskViaProxy) throw e;
+    if (String(e.message || e).includes('fetch') || String(e.message || e).includes('сеть')) {
+      log('⚠ Прямой запрос к Диску рвётся — переключаюсь на прокси через клауд-функцию (план Б).');
+      state.diskViaProxy = true;
+      return funcProxy(method, url, body);
+    }
+    throw e;
+  }
+}
 async function fetchRetry(url, opts, tries = 2) { // одна повторная попытка при сетевом сбое (Failed to fetch)
   let err;
   for (let i = 0; i < tries; i++) {
@@ -354,10 +402,10 @@ async function diskDownload(path) {
   if (link.status === 401) throw diskAuthError();
   if (!link.ok) throw new Error('Диск: download-link ' + link.status);
   const { href } = await link.json();
-  const r = await fetchRetry(href);
+  const r = await diskCall('GET', href, null);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error('Диск: файл ' + path + ' — ' + r.status);
-  return await r.arrayBuffer();
+  return await r.buffer();
 }
 async function diskUpload(path, data, mime) {
   const mkLink = () => diskReq(`https://cloud-api.yandex.net/v1/disk/resources/upload?path=${encodeURIComponent('disk:/' + path)}&overwrite=true${diskTokenParam()}`);
@@ -377,7 +425,7 @@ async function diskUpload(path, data, mime) {
     throw new Error('Диск: upload-link ' + up.status + ' для ' + path + (body ? ' — ' + body.slice(0, 300) : ''));
   }
   const { href } = await up.json();
-  const put = await fetchRetry(href, { method: 'PUT', body: data });
+  const put = await diskCall('PUT', href, data);
   if (!put.ok) throw new Error('Диск: загрузка ' + path + ' — ' + put.status);
 }
 async function diskGetJson(path) {
@@ -1042,14 +1090,15 @@ async function saveDiskToken() {
     try { await bridgeSend('VKWebAppStorageSet', { key: CONFIG.STORAGE_KEY_DISK_TOKEN + '_date', value: state.diskTokenDate }); } catch (e) {}
     let ok = false; // живая проверка токена при сохранении: видно, чей аккаунт и что отвечает сервер
     try {
-      const chk = await fetchRetry('https://cloud-api.yandex.net/v1/disk/', { headers: { Authorization: 'OAuth ' + t } });
-      if (chk.ok) {
+      const chk = await diskCall('GET', 'https://cloud-api.yandex.net/v1/disk/', null);
+      if (chk.status && chk.status === 200) { // через прокси r.ok не определён — используем статус
         const di = await chk.json();
         $('disk-status').innerHTML = '<span style="color:var(--ok)">Токен принят, аккаунт: ' + escapeHtml((di.user && di.user.login) || '?') + '.</span>';
         ok = true;
       } else {
+        const st = chk.status || 0;
         let b = ''; try { b = await chk.text(); } catch (e2) {}
-        $('disk-status').innerHTML = '<span style="color:var(--warn)">Диск не принял токен: HTTP ' + chk.status + (b ? ' — ' + escapeHtml(b.slice(0, 140)) : '') + '. Получите токен заново и скопируйте целиком.</span>';
+        $('disk-status').innerHTML = '<span style="color:var(--warn)">Диск не принял токен: HTTP ' + st + (b ? ' — ' + escapeHtml(b.slice(0, 140)) : '') + '. Получите токен заново и скопируйте целиком.</span>';
       }
     } catch (e2) {
       $('disk-status').innerHTML = '<span style="color:var(--warn)">Проверка токена: сеть не ответила (' + escapeHtml(e2.message || String(e2)) + ').</span>';
