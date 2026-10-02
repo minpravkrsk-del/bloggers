@@ -340,7 +340,7 @@ function parseLinkTarget(s) {
 }
 async function resolveTarget(fromLink) {
   const t = fromLink ? parseLinkTarget(fromLink) : null;
-  if (!t) throw new Error('Не удалось разобрать ссылку');
+  if (!t) throw new Error('Ссылка пустая или нераспознанная — введите адрес вроде vk.ru/id20321091 или vk.ru/club123');
   // кэш резолвинга коротких адресов
   if (t.screen && state.resolves && state.resolves[t.screen]) return state.resolves[t.screen];
   let target;
@@ -974,6 +974,7 @@ function wireUI() {
   $('tab-link').onclick = () => {
     $('tab-link').classList.add('active'); $('tab-table').classList.remove('active');
     $('pane-link').classList.remove('hidden'); $('pane-table').classList.add('hidden');
+    state.fromTableItem = null;
   };
   $('tab-table').onclick = () => {
     $('tab-table').classList.add('active'); $('tab-link').classList.remove('active');
@@ -981,7 +982,16 @@ function wireUI() {
   };
   document.querySelectorAll('input[name=tf]').forEach(r => r.onchange = renderPicker);
   $('inp-search').oninput = renderPicker;
-  $('btn-run').onclick = run;
+  $('btn-run').onclick = () => {
+    if (!state.fromTableItem && !$('inp-link').value.trim()) {
+      $('inp-link').style.borderColor = '#e3342f';
+      $('inp-link').placeholder = 'Введите ссылку — например vk.ru/id20321091 или vk.ru/club123';
+      $('inp-link').focus();
+      return;
+    }
+    $('inp-link').style.borderColor = '';
+    run();
+  };
   $('btn-merge').onclick = mergeQueue;
   $('btn-queue-dl').onclick = queueToXlsx;
   $('btn-disk-save').onclick = saveDiskToken;
