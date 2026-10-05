@@ -89,7 +89,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <!-- ЭКРАН 0: инициализация / доступ (видим сразу) -->
   <div id="screen-gate" class="card">
     <h1>🔒 Заполнитель таблицы</h1>
-    <div class="muted">Сборка: v25 · план Б · 02.10.2026</div>
+    <div class="muted">Сборка: v27 · план Б · 06.10.2026</div>
     <div id="gate-msg" class="muted">Проверка доступа…</div>
   </div>
 
@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v25 · 02.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
+  VER: 'v27 · 06.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -282,6 +282,20 @@ function vkApi(method, params, attempt = 0) {
       return r.response;
     } catch (e) {
       const code = e && (e.error_data ? e.error_data.error_code : e.error_code);
+      const emsg = String((e && (e.error_data && (e.error_data.error_msg || e.error_data.error_description)) || e.message || e) || '');
+      if (emsg.toLowerCase().includes('authorization failed') || emsg.toLowerCase().includes('access_token was given to another')) {
+        // токен «привязан» к другому IP: ВК выдал его при одной сети, запросы пошли с другой (Wi-Fi ↔ мобильный)
+        log('⚠ ВК: токен привязан к другому IP (смена сети Wi-Fi ↔ мобильный). Обновляю токен…');
+        try {
+          const a = await bridgeSend('VKWebAppGetAuthToken', { app_id: CONFIG.APP_ID, scope: 'wall,friends' }, 60000);
+          state.token = a.access_token;
+          log('ВК-токен обновлён, повторяю запрос.');
+          return vkApi(method, params, 0);
+        } catch (e2) { throw new Error('ВК: не удалось обновить токен при смене сети — откройте приложение заново (VKWebAppGetAuthToken: ' + ((e2 && (e2.message || e2)) || 'нет связи') + ')'); }
+      }
+      if (code === 29) { // дневная квота пользователя исчерпана — повторы бессмысленны
+        throw new Error('Дневная квота ВК API исчерпана (код 29). Прогресс сохранён — продолжите завтра с того же места.');
+      }
       if ((code === 6 || code === 9 || code === 10) && attempt < 4) {
         const wait = 1500 * Math.pow(2, attempt);
         log(`⚠ ${method}: код ${code}, пауза ${wait / 1000}с и повтор`);
