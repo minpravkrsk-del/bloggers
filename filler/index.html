@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v27.2 · 28.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v27.3 · 28.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -774,16 +774,6 @@ function fillRowById(ws, id, data) {
   if (isNew) {
     const range = XLSX.utils.decode_range(ws['!ref']);
     row = range.e.r + 1;
-    // формулы для новой строки
-    const R = row;
-    const setF = (col, f) => { ws[XLSX.utils.encode_cell({ r: R - 1, c: col - 1 })] = { t: 'n', f: String(f).replace(/^=/, '') }; };
-    setF(6, `=D${R}/100*E${R}`);
-    setF(11, `=I${R}/100*E${R}`);
-    setF(12, `=IF(I${R}="","",J${R}/I${R})`);
-    setF(13, `=IF(OR(D${R}="",D${R}=0),"",J${R}/D${R})`);
-    setF(19, `=IF($Q${R}="","",I${R}/$Q${R})`);
-    setF(20, `=IF($R${R}="","",J${R}/$R${R})`);
-    log('Новая строка ' + R + ' (с формулами)');
   }
   const set = (col, val) => {
     const addr = XLSX.utils.encode_cell({ r: row - 1, c: col - 1 });
@@ -794,13 +784,29 @@ function fillRowById(ws, id, data) {
   if (isNew) set(COL.LINK, data.link);
   set(COL.SUBS, data.subs);
   const pct = data.shareDenom === 'known' ? data.pctKnown : data.pctAll;
-  set(COL.SHARE, pct === null ? null : Math.round(pct * 10) / 10);
+  const eVal = pct === null ? null : Math.round(pct * 10) / 10;
+  set(COL.SHARE, eVal);
   set(COL.MAX, data.max); set(COL.MIN, data.min);
   set(COL.AVG_V, data.avgViews ? Math.round(data.avgViews) : null);
   set(COL.AVG_S, data.avgSoc ? Math.round(data.avgSoc) : null);
   set(COL.POSTS, data.posts);
   set(COL.PERIOD, data.period);
   set(COL.MED_V, data.medViews); set(COL.MED_S, data.medSoc);
+  // формулы + кэшированные значения: ячейка с формулой без значения невидима для
+  // SheetJS-парсера (и значит для аналайзера), поэтому сразу пишем и результат
+  const R = row;
+  const dD = (data.subs === null || data.subs === undefined) ? null : data.subs;
+  const dI = data.avgViews ? Math.round(data.avgViews) : null;
+  const dJ = data.avgSoc ? Math.round(data.avgSoc) : null;
+  const dQ = data.medViews, dR2 = data.medSoc;
+  const setF = (col, f, v) => { const cell = { t: 'n', f: String(f).replace(/^=/, '') }; if (v !== null && v !== undefined && isFinite(v)) cell.v = v; ws[XLSX.utils.encode_cell({ r: R - 1, c: col - 1 })] = cell; };
+  setF(6, `=D${R}/100*E${R}`, (dD !== null && eVal !== null) ? dD * eVal / 100 : null);
+  setF(11, `=I${R}/100*E${R}`, (dI !== null && eVal !== null) ? dI * eVal / 100 : null);
+  setF(12, `=IF(I${R}="","",J${R}/I${R})`, (dI && dJ && dI > 0) ? dJ / dI : null);
+  setF(13, `=IF(OR(D${R}="",D${R}=0),"",J${R}/D${R})`, (dD && dJ && dD > 0) ? dJ / dD : null);
+  setF(19, `=IF($Q${R}="","",I${R}/$Q${R})`, (dI && dQ && dQ > 0) ? dI / dQ : null);
+  setF(20, `=IF($R${R}="","",J${R}/$R${R})`, (dJ && dR2 && dR2 > 0) ? dJ / dR2 : null);
+  log(isNew ? 'Новая строка ' + R + ' (формулы + значения)' : 'Обновлена строка ' + R + ' (формулы обновлены)');
   return row;
 }
 
