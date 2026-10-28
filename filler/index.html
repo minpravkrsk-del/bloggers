@@ -220,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v27.1 · 28.10.2026'   // версия сборки — первая строка журнала прогона
+  VER: 'v27.2 · 28.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -776,7 +776,7 @@ function fillRowById(ws, id, data) {
     row = range.e.r + 1;
     // формулы для новой строки
     const R = row;
-    const setF = (col, f) => { ws[XLSX.utils.encode_cell({ r: R - 1, c: col - 1 })] = { t: 's', v: f }; };
+    const setF = (col, f) => { ws[XLSX.utils.encode_cell({ r: R - 1, c: col - 1 })] = { t: 'n', f: String(f).replace(/^=/, '') }; };
     setF(6, `=D${R}/100*E${R}`);
     setF(11, `=I${R}/100*E${R}`);
     setF(12, `=IF(I${R}="","",J${R}/I${R})`);
@@ -836,6 +836,7 @@ async function mergeQueue() {
       if (existed) updated++; else added++;
       log(`Очередь: ${q.name} → строка ${row} (${existed ? 'обновлена' : 'добавлена'})`);
     }
+    try { wb.Workbook = wb.Workbook || {}; wb.Workbook.CalcPr = { fullCalcOnLoad: true }; } catch (e2) {}
     const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const safe = $('chk-safe').checked;
     let path = CONFIG.DISK_PATH;
