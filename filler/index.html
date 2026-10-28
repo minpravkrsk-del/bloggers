@@ -1,5 +1,19 @@
 <!DOCTYPE html>
+<!--
+  Заполнитель таблицы «Блоггеры ВК Красноярск» — VK Mini App.
+  Хостинг: GitHub Pages (папка filler/ репозитория bloggers).
+  Адрес в «Размещении»: https://minpravkrsk-del.github.io/bloggers/filler/index.html
+  Ссылка приложения: https://vk.ru/app54798571
 
+  Архитектура:
+  • Сбор идёт поэтапно (подписчики → города → стена); каждый этап и страница сохраняются
+    в кэш на Диске (_filler_cache/p<id>.json) — при нехватке лимита прогон можно продолжить.
+  • Результат кладётся в ОЧЕРЕДЬ (_filler_cache/очередь.json), а не сразу в таблицу.
+  • Кнопка «Внести в таблицу» сливает очередь с основной таблицей и очищает очередь.
+  • Выбор блогера: по ссылке или из списка таблицы (незаполненные / все, поиск, сортировка по подписчикам).
+  • Справочник городов края кэшируется на Диске (города_края.json).
+  • Матчинг строк — по числовому ID, а не по строке ссылки.
+-->
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -206,7 +220,7 @@ const CONFIG = {
   REQ_INTERVAL_MS: 400,
   SHEET: 'l1_merged',
   STORAGE_KEY_DISK_TOKEN: 'disk_oauth',
-  VER: 'v27 · 06.10.2026 · план Б'   // версия сборки — первая строка журнала прогона
+  VER: 'v27.1 · 28.10.2026'   // версия сборки — первая строка журнала прогона
 };
 
 /* Колонки l1_merged. Формульные (6, 11, 12, 13, 19, 20) не трогаем при обновлении;
@@ -472,7 +486,7 @@ async function resolveTarget(fromLink) {
   }
   if (t.screen) {
     state.resolves[t.screen] = target;
-    await saveResolves();
+    try { await diskSetJson(CONFIG.CACHE_DIR + '/резолвы.json', state.resolves); } catch (e) { log('⚠ резолвы не сохранены'); }
   }
   return target;
 }
