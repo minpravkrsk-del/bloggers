@@ -295,6 +295,25 @@ function parseGrid(grid) {
       row.er = row.er * 100;
       if (row.er === 0 && row.avg_r === null) row.er = null;
     }
+    // Досчёт расчётных колонок, если кэш формулы пуст (файл записан без пересчёта в редакторе)
+    var hasF = function(k){ return colIdx[k] !== undefined && grid[r][colIdx[k]][1] === true; };
+    if (row.lsubs === null && hasF('lsubs') && row.subs !== null && row.share !== null)
+      row.lsubs = row.subs * row.share / 100;
+    if (row.calc === null && hasF('calc') && row.avg_v !== null && row.share !== null)
+      row.calc = row.avg_v * row.share / 100 / 1000;
+    if (row.erv === null && hasF('erv') && row.avg_r !== null && row.avg_v !== null && row.avg_v > 0)
+      row.erv = row.avg_r / row.avg_v * 100;
+    if (row.er === null && hasF('er') && row.avg_r !== null) {
+      var subsRaw = num(g('subs')[0]);
+      if (subsRaw !== null && subsRaw > 0) {
+        row.er = row.avg_r / subsRaw * 100;
+        if (row.er === 0 && row.avg_r === null) row.er = null;
+      }
+    }
+    if (row.skewv === null && hasF('skewv') && row.avg_v !== null && row.medv !== null && row.medv > 0)
+      row.skewv = row.avg_v / row.medv;
+    if (row.skewr === null && hasF('skewr') && row.avg_r !== null && row.medr !== null && row.medr > 0)
+      row.skewr = row.avg_r / row.medr;
     row.freqScore = FREQ_MAP[row.freqRaw] !== undefined ? FREQ_MAP[row.freqRaw] : null;
     rows.push(row);
   }
